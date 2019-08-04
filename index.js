@@ -99,10 +99,7 @@ module.exports = (pattern, {
       watchFile(abspath);
     }
   }).on('end', () => {
-    events.emit('ready', {
-      files: Object.keys(files),
-      dirs: Object.keys(dirs)
-    });
+    events.emit('ready');
   }).on('error', err => {
     events.emit('error', err);
   });
