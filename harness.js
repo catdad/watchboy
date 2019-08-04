@@ -16,8 +16,8 @@ const watcher = watchboy(patterns).on('ready', ({ files, dirs }) => {
   watcher.on('add', ({ path }) => {
     console.log('added after ready:', path);
   });
-}).on('change', ({ entity, path, type, name }) => {
-  console.log(entity, type, name, path, Date.now());
+}).on('change', ({ path }) => {
+  console.log('change', path, Date.now());
 }).on('remove', ({ path }) => {
   console.log('remove:', path);
 });

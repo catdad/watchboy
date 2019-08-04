@@ -31,14 +31,10 @@ module.exports = (pattern, {
 
   const onFileChange = abspath => (type) => {
     if (type === 'rename') {
-      removeFile(abspath);
-      return;
+      return removeFile(abspath);
     }
 
-    events.emit('change', {
-      path: abspath,
-      entity: 'file'
-    });
+    events.emit('change', { path: abspath });
   };
 
   const onDirChange = abspath => () => {
