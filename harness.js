@@ -28,3 +28,6 @@ const watcher = watchboy(patterns).on('ready', ({ files, dirs }) => {
 // events are throttled to handle duplicates
 // large file can wait for writes to finish before firing event
 // when a file is deleted a remove event fires
+//  * rename event is not propagated
+// when a directory is deleted, a remove event fires
+// handle errors on every watcher

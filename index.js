@@ -43,6 +43,8 @@ module.exports = (pattern, {
 
   const onDirChange = abspath => () => {
     readdir(abspath, pattern).then(paths => {
+      // find only files that exist in this directory
+      // TODO filter out files that in subdirectories of this directory
       const existing = Object.keys(files).filter(file => file.slice(0, abspath.length) === abspath);
       // diff returns items in the first array that are not in the second
       const newFiles = diff(paths, existing);
