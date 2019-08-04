@@ -8,8 +8,8 @@ const chokidar = (patterns, opts) => {
   const watcher = require('chokidar').watch(patterns, opts);
   watcher.on('add', path => events.emit('add', { path }));
   watcher.on('addDir', path => events.emit('addDir', { path }));
-  watcher.on('unlink', path => events.emit('unlink', { path }));
   watcher.on('change', path => events.emit('change', { path }));
+  watcher.on('unlink', path => events.emit('unlink', { path }));
   watcher.on('unlinkDir', path => events.emit('unlinkDir', { path }));
   watcher.on('ready', path => events.emit('ready', { path }));
 

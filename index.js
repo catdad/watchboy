@@ -83,32 +83,16 @@ module.exports = (pattern, {
         .filter(file => path.dirname(file) === abspath)
         .filter(file => !dirs[file]);
       // diff returns items in the first array that are not in the second
-      const newFiles = diff(foundFiles, existingFiles);
-      const removedFiles = diff(existingFiles, foundFiles);
-
-      if (removedFiles.length) {
-        removedFiles.forEach(file => removeFile(file));
-      }
-
-      if (newFiles.length) {
-        newFiles.forEach(file => watchFile(file));
-      }
+      diff(existingFiles, foundFiles).forEach(file => removeFile(file));
+      diff(foundFiles, existingFiles).forEach(file => watchFile(file));
 
       // now do the same thing for directories
       const existingDirs = Object.keys(dirs)
         .filter(dir => path.dirname(dir) === abspath)
         .filter(dir => !files[dir]);
 
-      const newDirs = diff(foundDirs, existingDirs);
-      const removedDirs = diff(existingDirs, foundDirs);
-
-      if (removedDirs.length) {
-        removedDirs.forEach(dir => removeDir(dir));
-      }
-
-      if (newDirs.length) {
-        newDirs.forEach(dir => watchDir(dir));
-      }
+      diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
+      diff(foundDirs, existingDirs).forEach(dir => watchDir(dir));
     });
   };
 
