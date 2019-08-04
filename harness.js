@@ -2,6 +2,23 @@
 process.title = 'watch harness';
 
 const watchboy = require('./');
+const chokidar = (patterns, opts) => {
+  const EventEmitter = require('events');
+  const events = new EventEmitter();
+  const watcher = require('chokidar').watch(patterns, Object.assign({}, opts, {
+    ignored: [
+      /(^|[/\\])\../ // Dotfiles
+    ]
+  }));
+  watcher.on('add', path => events.emit('add', { path }));
+  watcher.on('addDir', path => events.emit('addDir', { path }));
+  watcher.on('unlink', path => events.emit('remove', { path }));
+  watcher.on('change', path => events.emit('change', { path }));
+  watcher.on('unlinkDir', path => events.emit('unlinkDir', { path }));
+  watcher.on('ready', path => events.emit('ready', { path }));
+
+  return events;
+};
 
 const patterns = process.argv.slice(2);
 console.log('starting glob for:', patterns);
@@ -11,6 +28,7 @@ const dirs = [];
 let ready = false;
 const start = Date.now();
 
+//const watcher = chokidar(patterns).on('add', ({ path }) => {
 const watcher = watchboy(patterns).on('add', ({ path }) => {
   if (ready) return;
   files.push(path);
@@ -24,6 +42,9 @@ const watcher = watchboy(patterns).on('add', ({ path }) => {
 
   ready = true;
 
+  console.log(files);
+  console.log(dirs);
+
   watcher.on('add', ({ path }) => {
     console.log('add file after ready:', path);
   }).on('addDir', ({ path }) => {
@@ -33,6 +54,8 @@ const watcher = watchboy(patterns).on('add', ({ path }) => {
   console.log('change:', path, Date.now());
 }).on('remove', ({ path }) => {
   console.log('remove:', path);
+}).on('unlinkDir', ({ path }) => {
+  console.log('unlinkDir:', path);
 });
 
 // TODO:
@@ -42,6 +65,7 @@ const watcher = watchboy(patterns).on('add', ({ path }) => {
 // large file can wait for writes to finish before firing event
 // when a directory is deleted, a remove event fires
 // handle errors on every watcher
+// add close method to stop the whole thing
 
 // DONE
 // changed file fires an event
