@@ -59,12 +59,7 @@ const watcher = watchboy(patterns).on('add', ({ path }) => {
 });
 
 // TODO:
-// new directory created in watched directory fires an event
-//  * new files in directory are watched
-//  * new subdirectories are watched
-//  * new files in new subdirectories are watched
 // large file can wait for writes to finish before firing event
-// when a directory is deleted, a remove event fires
 // handle errors on every watcher
 // add `close` method to stop the whole thing
 // add `add` method to manually add more things to watch
@@ -74,4 +69,9 @@ const watcher = watchboy(patterns).on('add', ({ path }) => {
 // new file created in watched directory fires an event
 // when a file is deleted a remove event fires
 //  * rename event is not propagated
+// when a directory is deleted, a remove event fires
 // events are throttled to handle duplicates
+// new directory created in watched directory fires an event
+//  * new files in directory are watched
+//  * new subdirectories are watched
+//  * new files in new subdirectories are watched
