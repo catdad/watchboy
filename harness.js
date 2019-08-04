@@ -5,11 +5,7 @@ const watchboy = require('./');
 const chokidar = (patterns, opts) => {
   const EventEmitter = require('events');
   const events = new EventEmitter();
-  const watcher = require('chokidar').watch(patterns, Object.assign({}, opts, {
-    ignored: [
-      /(^|[/\\])\../ // Dotfiles
-    ]
-  }));
+  const watcher = require('chokidar').watch(patterns, opts);
   watcher.on('add', path => events.emit('add', { path }));
   watcher.on('addDir', path => events.emit('addDir', { path }));
   watcher.on('unlink', path => events.emit('unlink', { path }));
