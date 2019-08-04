@@ -19,10 +19,24 @@ module.exports = (pattern, {
   const dirs = {};
   const files = {};
 
-  const onFileChange = abspath => (type, name) => {
+  const removeFile = (abspath) => {
+    const watcher = files[abspath];
+
+    if (watcher) {
+      watcher.close();
+      delete files[abspath];
+      events.emit('remove', { path: abspath });
+    }
+  };
+
+  const onFileChange = abspath => (type) => {
+    if (type === 'rename') {
+      removeFile(abspath);
+      return;
+    }
+
     events.emit('change', {
       path: abspath,
-      type, name,
       entity: 'file'
     });
   };
@@ -35,17 +49,11 @@ module.exports = (pattern, {
       const removedFiles = diff(existing, paths);
 
       if (removedFiles.length) {
-        removedFiles.forEach(file => {
-          files[file].close();
-          delete files[file];
-          events.emit('remove', { path: file });
-        });
+        removedFiles.forEach(file => removedFiles(file));
       }
 
       if (newFiles.length) {
-        newFiles.forEach(file => {
-          watchFile(file);
-        });
+        newFiles.forEach(file => watchFile(file));
       }
     });
   };
