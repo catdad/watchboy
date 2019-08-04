@@ -19,40 +19,44 @@ module.exports = (pattern, {
   const dirs = {};
   const files = {};
 
-  const watchFile = abspath => {
-    files[abspath] = watch(abspath, (type, name) => {
-      events.emit('change', {
-        path: abspath,
-        type, name,
-        entity: 'file'
-      });
+  const onFileChange = abspath => (type, name) => {
+    events.emit('change', {
+      path: abspath,
+      type, name,
+      entity: 'file'
     });
+  };
+
+  const onDirChange = abspath => () => {
+    readdir(abspath, pattern).then(paths => {
+      const existing = Object.keys(files).filter(file => file.slice(0, abspath.length) === abspath);
+      // diff returns items in the first array that are not in the second
+      const newFiles = diff(paths, existing);
+      const removedFiles = diff(existing, paths);
+
+      if (removedFiles.length) {
+        removedFiles.forEach(file => {
+          files[file].close();
+          delete files[file];
+          events.emit('remove', { path: file });
+        });
+      }
+
+      if (newFiles.length) {
+        newFiles.forEach(file => {
+          watchFile(file);
+        });
+      }
+    });
+  };
+
+  const watchFile = abspath => {
+    files[abspath] = watch(abspath, onFileChange(abspath));
     events.emit('add', { path: abspath });
   };
 
   const watchDir = abspath => {
-    dirs[abspath] = watch(abspath, () => {
-      readdir(abspath, pattern).then(paths => {
-        const existing = Object.keys(files).filter(file => file.slice(0, abspath.length) === abspath);
-        // diff returns items in the first array that are not in the second
-        const newFiles = diff(paths, existing);
-        const removedFiles = diff(existing, paths);
-
-        if (removedFiles.length) {
-          removedFiles.forEach(file => {
-            files[file].close();
-            delete files[file];
-            events.emit('remove', { path: file });
-          });
-        }
-
-        if (newFiles.length) {
-          newFiles.forEach(file => {
-            watchFile(file);
-          });
-        }
-      });
-    });
+    dirs[abspath] = watch(abspath, onDirChange(abspath));
     events.emit('addDir', { path: abspath });
   };
 
