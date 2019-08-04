@@ -15,7 +15,8 @@ module.exports = (pattern, {
   globby.stream(pattern, {
     onlyFiles: false,
     markDirectories: true,
-    cwd
+    cwd,
+    concurrency: 1
   }).on('data', file => {
     const abspath = path.resolve(cwd, file);
 
