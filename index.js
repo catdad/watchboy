@@ -18,6 +18,23 @@ module.exports = (pattern, {
   const events = new EventEmitter();
   const dirs = {};
   const files = {};
+  const pending = {};
+
+  const throttle = (abspath, evname, evarg) => {
+    const funcKey = `func : ${abspath}`;
+
+    if (pending[funcKey]) {
+      clearTimeout(pending[funcKey]);
+    } else {
+      // save only the first set of arguments
+      pending[abspath] = [evname, evarg];
+    }
+
+    pending[funcKey] = setTimeout(() => {
+      const [name, arg] = pending[abspath];
+      events.emit(name, arg);
+    }, 50);
+  };
 
   const removeFile = (abspath) => {
     const watcher = files[abspath];
@@ -34,7 +51,7 @@ module.exports = (pattern, {
       return removeFile(abspath);
     }
 
-    events.emit('change', { path: abspath });
+    throttle(abspath, 'change', { path: abspath });
   };
 
   const onDirChange = abspath => () => {
