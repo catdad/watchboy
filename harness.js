@@ -15,3 +15,9 @@ watchboy(pattern).on('ready', ({ files, dirs }) => {
 }).on('change', ({ entity, path, type, name }) => {
   console.log(entity, type, name, path, Date.now());
 });
+
+// TODO:
+// changed file fires an event
+// new file created in watched directory fires an event
+// events are throttled to handle duplicates
+// large file can wait for writes to finish before firing event
