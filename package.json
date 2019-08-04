@@ -1,0 +1,26 @@
+{
+  "name": "watchboy",
+  "version": "1.0.0",
+  "description": "watchboy",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/catdad/watchboy.git"
+  },
+  "keywords": [],
+  "author": "Kiril Vatev <vatev.1@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/catdad/watchboy/issues"
+  },
+  "homepage": "https://github.com/catdad/watchboy#readme",
+  "dependencies": {
+    "globby": "^10.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^5.16.0"
+  }
+}
