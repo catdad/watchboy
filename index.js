@@ -2,6 +2,14 @@ const path = require('path');
 const EventEmitter = require('events');
 const fs = require('fs');
 const globby = require('globby');
+const diff = require('lodash.difference');
+
+const readdir = (dir, pattern) => {
+  return globby(pattern, {
+    cwd: dir,
+    deep: 1
+  }).then(paths => paths.map(f => path.resolve(dir, f)));
+};
 
 module.exports = (pattern, {
   cwd = process.cwd(),
@@ -10,6 +18,43 @@ module.exports = (pattern, {
   const events = new EventEmitter();
   const dirs = {};
   const files = {};
+
+  const watchFile = abspath => {
+    files[abspath] = watch(abspath, (type, name) => {
+      events.emit('change', {
+        path: abspath,
+        type, name,
+        entity: 'file'
+      });
+    });
+    events.emit('add', { path: abspath });
+  };
+
+  const watchDir = abspath => {
+    dirs[abspath] = watch(abspath, () => {
+      readdir(abspath, pattern).then(paths => {
+        const existing = Object.keys(files).filter(file => file.slice(0, abspath.length) === abspath);
+        // diff returns items in the first array that are not in the second
+        const newFiles = diff(paths, existing);
+        const removedFiles = diff(existing, paths);
+
+        if (removedFiles.length) {
+          removedFiles.forEach(file => {
+            files[file].close();
+            delete files[file];
+            events.emit('remove', { path: file });
+          });
+        }
+
+        if (newFiles.length) {
+          newFiles.forEach(file => {
+            watchFile(file);
+          });
+        }
+      });
+    });
+    events.emit('addDir', { path: abspath });
+  };
 
   const watch = (file, func) => fs.watch(file, { persistent }, func);
   globby.stream(pattern, {
@@ -21,23 +66,9 @@ module.exports = (pattern, {
     const abspath = path.resolve(cwd, file);
 
     if (/\/$/.test(file)) {
-      dirs[abspath] = watch(file, (type, name) => {
-        events.emit('change', {
-          path: abspath,
-          type, name,
-          entity: 'directory'
-        });
-      });
-      events.emit('addDir', { path: file });
+      watchDir(abspath);
     } else {
-      files[abspath] = watch(file, (type, name) => {
-        events.emit('change', {
-          path: abspath,
-          type, name,
-          entity: 'file'
-        });
-      });
-      events.emit('add', { path: file });
+      watchFile(abspath);
     }
   }).on('end', () => {
     events.emit('ready', {
