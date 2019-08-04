@@ -73,6 +73,8 @@ module.exports = (pattern, {
     });
   };
 
+  const watch = (file, func) => fs.watch(file, { persistent }, func);
+
   const watchFile = abspath => {
     files[abspath] = watch(abspath, onFileChange(abspath));
     events.emit('add', { path: abspath });
@@ -83,7 +85,6 @@ module.exports = (pattern, {
     events.emit('addDir', { path: abspath });
   };
 
-  const watch = (file, func) => fs.watch(file, { persistent }, func);
   globby.stream(pattern, {
     onlyFiles: false,
     markDirectories: true,
