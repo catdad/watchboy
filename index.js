@@ -42,7 +42,7 @@ module.exports = (pattern, {
     if (watcher) {
       watcher.close();
       delete files[abspath];
-      events.emit('remove', { path: abspath });
+      events.emit('unlink', { path: abspath });
     }
   };
 

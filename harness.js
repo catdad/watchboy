@@ -12,7 +12,7 @@ const chokidar = (patterns, opts) => {
   }));
   watcher.on('add', path => events.emit('add', { path }));
   watcher.on('addDir', path => events.emit('addDir', { path }));
-  watcher.on('unlink', path => events.emit('remove', { path }));
+  watcher.on('unlink', path => events.emit('unlink', { path }));
   watcher.on('change', path => events.emit('change', { path }));
   watcher.on('unlinkDir', path => events.emit('unlinkDir', { path }));
   watcher.on('ready', path => events.emit('ready', { path }));
@@ -52,8 +52,8 @@ const watcher = watchboy(patterns).on('add', ({ path }) => {
   });
 }).on('change', ({ path }) => {
   console.log('change:', path, Date.now());
-}).on('remove', ({ path }) => {
-  console.log('remove:', path);
+}).on('unlink', ({ path }) => {
+  console.log('unlink:', path);
 }).on('unlinkDir', ({ path }) => {
   console.log('unlinkDir:', path);
 });
@@ -62,10 +62,12 @@ const watcher = watchboy(patterns).on('add', ({ path }) => {
 // new directory created in watched directory fires an event
 //  * new files in directory are watched
 //  * new subdirectories are watched
+//  * new files in new subdirectories are watched
 // large file can wait for writes to finish before firing event
 // when a directory is deleted, a remove event fires
 // handle errors on every watcher
-// add close method to stop the whole thing
+// add `close` method to stop the whole thing
+// add `add` method to manually add more things to watch
 
 // DONE
 // changed file fires an event
