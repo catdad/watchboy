@@ -105,6 +105,7 @@ module.exports = (pattern, {
       watchFile(abspath);
     }
   }).on('end', () => {
+    watchDir(cwd);
     events.emit('ready');
   }).on('error', err => {
     events.emit('error', err);
