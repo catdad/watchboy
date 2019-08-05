@@ -120,7 +120,7 @@ module.exports = (pattern, {
     }
 
     files[abspath] = watch(abspath, onFileChange(abspath));
-    files[abspath].on('error', (err) => {
+    files[abspath].on('error', (/* err */) => {
       // TODO what happens with this error?
     });
 
@@ -133,7 +133,7 @@ module.exports = (pattern, {
     }
 
     dirs[abspath] = watch(abspath, onDirChange(abspath));
-    dirs[abspath].on('error', (err) => {
+    dirs[abspath].on('error', (/* err */) => {
       // TODO an EPERM error is fired when the directory is deleted
     });
 
