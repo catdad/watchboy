@@ -74,7 +74,7 @@ module.exports = (pattern, {
     }
   };
 
-  const onFileChange = abspath => (type) => {
+  const onFileChange = (abspath) => (type) => {
     if (type === 'rename') {
       return removeFile(abspath);
     }
@@ -82,7 +82,7 @@ module.exports = (pattern, {
     throttle(abspath, 'change', { path: abspath });
   };
 
-  const onDirChange = abspath => () => {
+  const onDirChange = (abspath) => () => {
     readdir(abspath, pattern).then(paths => {
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
@@ -114,26 +114,26 @@ module.exports = (pattern, {
 
   const watch = (file, func) => fs.watch(file, { persistent }, func);
 
-  const watchFile = abspath => {
+  const watchFile = (abspath) => {
     if (files[abspath]) {
       return;
     }
 
     files[abspath] = watch(abspath, onFileChange(abspath));
-    files[abspath].on('error', err => {
+    files[abspath].on('error', (err) => {
       // TODO what happens with this error?
     });
 
     events.emit('add', { path: abspath });
   };
 
-  const watchDir = abspath => {
+  const watchDir = (abspath) => {
     if (dirs[abspath]) {
       return;
     }
 
     dirs[abspath] = watch(abspath, onDirChange(abspath));
-    dirs[abspath].on('error', err => {
+    dirs[abspath].on('error', (err) => {
       // TODO an EPERM error is fired when the directory is deleted
     });
 
@@ -156,7 +156,7 @@ module.exports = (pattern, {
   }).on('end', () => {
     watchDir(cwd);
     events.emit('ready');
-  }).on('error', err => {
+  }).on('error', (err) => {
     events.emit('error', err);
   });
 
