@@ -120,7 +120,9 @@ module.exports = (pattern, {
     }
 
     files[abspath] = watch(abspath, onFileChange(abspath));
-    files[abspath].on('error', err => {});
+    files[abspath].on('error', err => {
+      // TODO what happens with this error?
+    });
 
     events.emit('add', { path: abspath });
   };
