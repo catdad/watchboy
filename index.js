@@ -13,6 +13,14 @@ const readdir = (dir, pattern) => {
   });
 };
 
+const evMap = {
+  change: 1,
+  add: 2,
+  addDir: 3,
+  unlink: 4,
+  unlinkDir: 5
+};
+
 module.exports = (pattern, {
   cwd = process.cwd(),
   persistent = true
@@ -29,12 +37,20 @@ module.exports = (pattern, {
       clearTimeout(pending[funcKey]);
     } else {
       // save only the first set of arguments
-      pending[abspath] = [evname, evarg];
+      pending[abspath] = { evname, evarg, priority: evMap[evname] || 0 };
+    }
+
+    if (evMap[evname] > pending[abspath].priority) {
+      // this event takes precedence over the queued one
+      pending[abspath] = { evname, evarg, priority: evMap[evname] || 0 };
     }
 
     pending[funcKey] = setTimeout(() => {
-      const [name, arg] = pending[abspath];
-      events.emit(name, arg);
+      const { evname, evarg } = pending[abspath];
+      events.emit(evname, evarg);
+
+      delete pending[abspath];
+      delete pending[funcKey];
     }, 50);
   };
 
@@ -44,7 +60,7 @@ module.exports = (pattern, {
     if (watcher) {
       watcher.close();
       delete files[abspath];
-      events.emit('unlink', { path: abspath });
+      throttle(abspath, 'unlink', { path: abspath });
     }
   };
 
@@ -54,7 +70,7 @@ module.exports = (pattern, {
     if (watcher) {
       watcher.close();
       delete dirs[abspath];
-      events.emit('unlinkDir', { path: abspath });
+      throttle(abspath, 'unlinkDir', { path: abspath });
     }
   };
 
@@ -66,7 +82,7 @@ module.exports = (pattern, {
     throttle(abspath, 'change', { path: abspath });
   };
 
-  const onDirChange = abspath => (...args) => {
+  const onDirChange = abspath => () => {
     readdir(abspath, pattern).then(paths => {
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
