@@ -29,8 +29,13 @@ module.exports = (pattern, {
   const dirs = {};
   const files = {};
   const pending = {};
+  let closed = false;
 
   const throttle = (abspath, evname, evarg) => {
+    if (closed) {
+      return;
+    }
+
     const funcKey = `func : ${abspath}`;
 
     if (pending[funcKey]) {
@@ -52,6 +57,14 @@ module.exports = (pattern, {
       delete pending[abspath];
       delete pending[funcKey];
     }, 50);
+  };
+
+  const error = (err, abspath) => {
+    if (closed) {
+      return;
+    }
+
+    events.emit('error', { path: abspath, error: err });
   };
 
   const removeFile = (abspath) => {
@@ -109,7 +122,7 @@ module.exports = (pattern, {
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
       diff(foundDirs, existingDirs).forEach(dir => watchDir(dir));
-    });
+    }).catch(err => error(err, abspath));
   };
 
   const watch = (file, func) => fs.watch(file, { persistent }, func);
@@ -161,14 +174,14 @@ module.exports = (pattern, {
   });
 
   events.close = () => {
+    closed = true;
+
     for (let file in files) {
-      files[file].close();
-      delete files[file];
+      removeFile(file);
     }
 
     for (let dir in dirs) {
-      dirs[dir].close();
-      delete dirs[dir];
+      removeDir(dir);
     }
   };
 
