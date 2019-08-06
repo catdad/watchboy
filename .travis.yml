@@ -23,6 +23,10 @@ jobs:
     - stage: test
       os: windows
       node_js: '10'
+      env:
+        - FORCE_COLOR=1
     - stage: test
       os: windows
       node_js: '8'
+      env:
+        - FORCE_COLOR=1
