@@ -1,7 +1,9 @@
+const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs-extra');
 const root = require('rootrequire');
 const { expect } = require('chai');
+const touch = promisify(require('touch'));
 
 const watchboy = require(root);
 
@@ -56,11 +58,22 @@ describe('watchboy', () => {
     ].sort());
   });
 
-  it('emits "add" when a new file is added');
+  it('emits "change" when a file changes', async () => {
+    const testFile = file('pineapples/six.txt');
 
-  it('emits "addDir" when a new directory is added');
+    await new Promise(r => {
+      watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
+    });
 
-  it('emits "change" when a file changes');
+    const [changedFile] = await Promise.all([
+      new Promise(r => {
+        watcher.once('change', ({ path }) => r(path));
+      }),
+      touch(testFile)
+    ]);
+
+    expect(changedFile).to.equal(testFile);
+  });
 
   it('emits "unlink" when a watched file is deleted');
 
