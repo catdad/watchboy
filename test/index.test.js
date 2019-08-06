@@ -113,6 +113,36 @@ describe('watchboy', () => {
     expect(addedDir).to.equal(testDir);
   });
 
+  it('emits an "add" and "addDir" when a new file is added to a new directory in an already watched directory', async () => {
+    const testFile = file('kiwi/seven.txt');
+
+    await new Promise(r => {
+      watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
+    });
+
+    const [addedFile, addedDir] = await Promise.all([
+      new Promise(r => {
+        watcher.once('add', ({ path }) => r(path));
+      }),
+      new Promise(r => {
+        watcher.once('addDir', ({ path }) => r(path));
+      }),
+      fs.outputFile(testFile, Math.random().toString(36))
+    ]);
+
+    expect(addedFile).to.equal(testFile);
+    expect(addedDir).to.equal(path.dirname(testFile));
+
+    const [changedFile] = await Promise.all([
+      new Promise(r => {
+        watcher.once('change', ({ path }) => r(path));
+      }),
+      touch(testFile)
+    ]);
+
+    expect(changedFile).to.equal(testFile);
+  });
+
   describe('close', () => {
     it('stops all listeners');
   });
