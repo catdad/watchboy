@@ -160,5 +160,17 @@ module.exports = (pattern, {
     events.emit('error', err);
   });
 
+  events.close = () => {
+    for (let file in files) {
+      files[file].close();
+      delete files[file];
+    }
+
+    for (let dir in dirs) {
+      dirs[dir].close();
+      delete dirs[dir];
+    }
+  };
+
   return events;
 };
