@@ -125,7 +125,11 @@ module.exports = (pattern, {
         .filter(dir => !files[dir]);
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
-      diff(foundDirs, existingDirs).forEach(dir => watchDir(dir));
+      diff(foundDirs, existingDirs).forEach(dir => {
+        watchDir(dir);
+        // check to see if we already have files in there
+        onDirChange(dir)();
+      });
     }).catch(err => {
       return exists(abspath).then(exists => {
         if (exists) {
