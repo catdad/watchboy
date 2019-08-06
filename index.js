@@ -13,6 +13,10 @@ const readdir = (dir, pattern) => {
   });
 };
 
+const exists = (abspath) => {
+  return new Promise(r => fs.access(abspath, err => r(!err)));
+};
+
 const evMap = {
   change: 1,
   add: 2,
@@ -122,7 +126,19 @@ module.exports = (pattern, {
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
       diff(foundDirs, existingDirs).forEach(dir => watchDir(dir));
-    }).catch(err => error(err, abspath));
+    }).catch(err => {
+      return exists(abspath).then(exists => {
+        if (exists) {
+          return Promise.reject(err);
+        }
+      }).catch(() => {
+        return Promise.reject(err);
+      });
+    }).catch(err => {
+      if (dirs[abspath]) {
+        error(err, abspath);
+      }
+    });
   };
 
   const watch = (file, func) => fs.watch(file, { persistent }, func);
