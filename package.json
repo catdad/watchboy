@@ -4,7 +4,7 @@
   "description": "watchboy",
   "main": "index.js",
   "scripts": {
-    "test": "mocha --slow 0 \"test/**/*.test.js\""
+    "test": "nyc mocha --slow 0 \"test/**/*.test.js\""
   },
   "repository": {
     "type": "git",
@@ -27,6 +27,7 @@
     "eslint": "^5.16.0",
     "fs-extra": "^8.1.0",
     "mocha": "^6.2.0",
+    "nyc": "^14.1.1",
     "rootrequire": "^1.0.0",
     "touch": "^3.1.0"
   },
