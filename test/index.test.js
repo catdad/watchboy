@@ -79,9 +79,39 @@ describe('watchboy', () => {
 
   it('emits "unlinkDir" when a watched directory is deleted');
 
-  it('emits "add" when a new file is created inside a watched directory');
+  it('emits "add" when a new file is created inside a watched directory', async () => {
+    const testFile = file('pineapples/seven.txt');
 
-  it('emits "addDir" when a new directory is created inside a watched directory');
+    await new Promise(r => {
+      watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
+    });
+
+    const [addedFile] = await Promise.all([
+      new Promise(r => {
+        watcher.once('add', ({ path }) => r(path));
+      }),
+      fs.outputFile(testFile, Math.random().toString(36))
+    ]);
+
+    expect(addedFile).to.equal(testFile);
+  });
+
+  it('emits "addDir" when a new directory is created inside a watched directory', async () => {
+    const testDir = file('pineapples/chunks');
+
+    await new Promise(r => {
+      watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
+    });
+
+    const [addedDir] = await Promise.all([
+      new Promise(r => {
+        watcher.once('addDir', ({ path }) => r(path));
+      }),
+      fs.ensureDir(testDir)
+    ]);
+
+    expect(addedDir).to.equal(testDir);
+  });
 
   describe('close', () => {
     it('stops all listeners');
