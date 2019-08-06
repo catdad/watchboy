@@ -75,9 +75,39 @@ describe('watchboy', () => {
     expect(changedFile).to.equal(testFile);
   });
 
-  it('emits "unlink" when a watched file is deleted');
+  it('emits "unlink" when a watched file is deleted', async () => {
+    const testFile = file('oranges/five.txt');
 
-  it('emits "unlinkDir" when a watched directory is deleted');
+    await new Promise(r => {
+      watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
+    });
+
+    const [unlinkedFile] = await Promise.all([
+      new Promise(r => {
+        watcher.once('unlink', ({ path }) => r(path));
+      }),
+      fs.remove(testFile)
+    ]);
+
+    expect(unlinkedFile).to.equal(testFile);
+  });
+
+  it('emits "unlinkDir" when a watched directory is deleted', async () => {
+    const testDir = file('oranges');
+
+    await new Promise(r => {
+      watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
+    });
+
+    const [unlinkedDir] = await Promise.all([
+      new Promise(r => {
+        watcher.once('unlinkDir', ({ path }) => r(path));
+      }),
+      fs.remove(testDir)
+    ]);
+
+    expect(unlinkedDir).to.equal(testDir);
+  });
 
   it('emits "add" when a new file is created inside a watched directory', async () => {
     const testFile = file('pineapples/seven.txt');
