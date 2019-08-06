@@ -1,3 +1,4 @@
+/* eslint-env mocha */
 const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs-extra');
@@ -7,7 +8,6 @@ const touch = promisify(require('touch'));
 
 const watchboy = require(root);
 
-/* eslint-env mocha */
 describe('watchboy', () => {
   const temp = path.resolve(root, 'temp');
   const file = relpath => path.resolve(temp, relpath);
