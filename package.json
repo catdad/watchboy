@@ -4,7 +4,7 @@
   "description": "watchboy",
   "main": "index.js",
   "scripts": {
-    "test": "mocha \"test/**/*.test.js\""
+    "test": "mocha --slow 0 \"test/**/*.test.js\""
   },
   "repository": {
     "type": "git",
@@ -25,7 +25,9 @@
     "chai": "^4.2.0",
     "chokidar": "^3.0.2",
     "eslint": "^5.16.0",
-    "mocha": "^6.2.0"
+    "fs-extra": "^8.1.0",
+    "mocha": "^6.2.0",
+    "rootrequire": "^1.0.0"
   },
   "engines": {
     "node": ">=8.0.0"
