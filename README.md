@@ -1,6 +1,6 @@
 # watchboy
 
-Watch files and directories for changes. Fast. No hassle. No native dependencies. Low memory usage. Everything you've ever wanted in a module.
+Watch files and directories for changes. Fast. No hassle. No native dependencies. Works the same way on Windows, Linux, and MacOS. Low memory usage. Everything you've ever wanted in a module.
 
 ## Install
 
