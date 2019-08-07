@@ -3,6 +3,7 @@ const EventEmitter = require('events');
 const fs = require('fs');
 const globby = require('globby');
 const diff = require('lodash.difference');
+const through = require('through2');
 
 const readdir = (dir, pattern) => {
   return globby(pattern, {
@@ -15,6 +16,23 @@ const readdir = (dir, pattern) => {
 
 const exists = (abspath) => {
   return new Promise(r => fs.access(abspath, err => r(!err)));
+};
+
+const iterateStream = (stream, iterate) => {
+  return new Promise((resolve, reject) => {
+    stream.on('error', err => reject(err));
+
+    stream.pipe(through.obj((data, enc, cb) => {
+      iterate(data).then(() => {
+        cb();
+      }).catch(err => {
+        cb(err);
+      });
+    }))
+      .on('data', () => {})
+      .on('end', () => resolve())
+      .on('error', err => reject(err));
+  });
 };
 
 const evMap = {
@@ -99,8 +117,9 @@ module.exports = (pattern, {
     throttle(abspath, 'change', { path: abspath });
   };
 
-  const onDirChange = (abspath) => () => {
-    readdir(abspath, pattern).then(paths => {
+  const onDirChange = (abspath) => async () => {
+    try {
+      const paths = await readdir(abspath, pattern);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
           dirs.push(path.resolve(abspath, file));
@@ -125,20 +144,20 @@ module.exports = (pattern, {
         .filter(dir => !files[dir]);
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
-      diff(foundDirs, existingDirs).forEach(dir => watchDir(dir));
-    }).catch(err => {
-      return exists(abspath).then(exists => {
-        if (exists) {
-          return Promise.reject(err);
-        }
-      }).catch(() => {
-        return Promise.reject(err);
+      diff(foundDirs, existingDirs).forEach(dir => {
+        watchDir(dir);
       });
-    }).catch(err => {
-      if (dirs[abspath]) {
-        error(err, abspath);
+    } catch (err) {
+      try {
+        if (await exists(abspath)) {
+          error(err, abspath);
+        }
+      } catch (e) {
+        if (dirs[abspath]) {
+          error(err, abspath);
+        }
       }
-    });
+    }
   };
 
   const watch = (file, func) => fs.watch(file, { persistent }, func);
@@ -166,26 +185,31 @@ module.exports = (pattern, {
       // TODO an EPERM error is fired when the directory is deleted
     });
 
-    events.emit('addDir', { path: abspath });
+    // check to see if we already have files in there that were
+    // added during the initial glob
+    return onDirChange(abspath)().then(() => {
+      events.emit('addDir', { path: abspath });
+    });
   };
 
-  globby.stream(pattern, {
+  iterateStream(globby.stream(pattern, {
     onlyFiles: false,
     markDirectories: true,
     cwd,
     concurrency: 1
-  }).on('data', file => {
+  }), async (file) => {
     const abspath = path.resolve(cwd, file);
 
     if (/\/$/.test(file)) {
-      watchDir(abspath);
+      await watchDir(abspath);
     } else {
-      watchFile(abspath);
+      await watchFile(abspath);
     }
-  }).on('end', () => {
-    watchDir(cwd);
+  }).then(() => {
+    return watchDir(cwd);
+  }).then(() => {
     events.emit('ready');
-  }).on('error', (err) => {
+  }).catch(err => {
     events.emit('error', err);
   });
 

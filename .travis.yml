@@ -1,0 +1,32 @@
+language: node_js
+
+install:
+  - npm install
+
+script:
+  - npm test
+
+jobs:
+  include:
+    - stage: test
+      os: linux
+      node_js: '12'
+    - stage: test
+      os: linux
+      node_js: '8'
+    - stage: test
+      os: osx
+      node_js: '12'
+    - stage: test
+      os: osx
+      node_js: '10'
+    - stage: test
+      os: windows
+      node_js: '10'
+      env:
+        - FORCE_COLOR=1
+    - stage: test
+      os: windows
+      node_js: '8'
+      env:
+        - FORCE_COLOR=1
