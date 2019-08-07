@@ -18,6 +18,23 @@ const exists = (abspath) => {
   return new Promise(r => fs.access(abspath, err => r(!err)));
 };
 
+const iterateStream = (stream, iterate) => {
+  return new Promise((resolve, reject) => {
+    stream.on('error', err => reject(err));
+
+    stream.pipe(through.obj((data, enc, cb) => {
+      iterate(data).then(() => {
+        cb();
+      }).catch(err => {
+        cb(err);
+      });
+    }))
+      .on('data', () => {})
+      .on('end', () => resolve())
+      .on('error', err => reject(err));
+  });
+};
+
 const evMap = {
   change: 1,
   add: 2,
@@ -168,39 +185,33 @@ module.exports = (pattern, {
       // TODO an EPERM error is fired when the directory is deleted
     });
 
-    // check to see if we already have files in there
+    // check to see if we already have files in there that were
+    // added during the initial glob
     return onDirChange(abspath)().then(() => {
       events.emit('addDir', { path: abspath });
     });
   };
 
-  const stream = globby.stream(pattern, {
+  iterateStream(globby.stream(pattern, {
     onlyFiles: false,
     markDirectories: true,
     cwd,
     concurrency: 1
-  });
-
-  stream.on('error', (err) => {
-    events.emit('error', err);
-  });
-
-  stream.pipe(through.obj((file, enc, cb) => {
+  }), async (file) => {
     const abspath = path.resolve(cwd, file);
 
     if (/\/$/.test(file)) {
-      watchDir(abspath).then(() => cb());
+      await watchDir(abspath);
     } else {
-      watchFile(abspath);
-      cb();
+      await watchFile(abspath);
     }
-  }))
-    .on('data', () => {})
-    .on('end', () => {
-      watchDir(cwd).then(() => {
-        events.emit('ready');
-      });
-    });
+  }).then(() => {
+    return watchDir(cwd);
+  }).then(() => {
+    events.emit('ready');
+  }).catch(err => {
+    events.emit('error', err);
+  });
 
   events.close = () => {
     closed = true;
