@@ -86,7 +86,9 @@ module.exports = (pattern, {
       return;
     }
 
-    events.emit('error', { path: abspath, error: err });
+    err.path = abspath;
+
+    events.emit('error', err);
   };
 
   const removeFile = (abspath) => {
