@@ -3,6 +3,7 @@ const EventEmitter = require('events');
 const fs = require('fs');
 const globby = require('globby');
 const diff = require('lodash.difference');
+const through = require('through2');
 
 const readdir = (dir, pattern) => {
   return globby(pattern, {
@@ -99,8 +100,9 @@ module.exports = (pattern, {
     throttle(abspath, 'change', { path: abspath });
   };
 
-  const onDirChange = (abspath) => () => {
-    readdir(abspath, pattern).then(paths => {
+  const onDirChange = (abspath) => async () => {
+    try {
+      const paths = await readdir(abspath, pattern);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
           dirs.push(path.resolve(abspath, file));
@@ -127,22 +129,18 @@ module.exports = (pattern, {
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
       diff(foundDirs, existingDirs).forEach(dir => {
         watchDir(dir);
-        // check to see if we already have files in there
-        onDirChange(dir)();
       });
-    }).catch(err => {
-      return exists(abspath).then(exists => {
-        if (exists) {
-          return Promise.reject(err);
+    } catch (err) {
+      try {
+        if (await exists(abspath)) {
+          error(err, abspath);
         }
-      }).catch(() => {
-        return Promise.reject(err);
-      });
-    }).catch(err => {
-      if (dirs[abspath]) {
-        error(err, abspath);
+      } catch (e) {
+        if (dirs[abspath]) {
+          error(err, abspath);
+        }
       }
-    });
+    }
   };
 
   const watch = (file, func) => fs.watch(file, { persistent }, func);
@@ -170,28 +168,39 @@ module.exports = (pattern, {
       // TODO an EPERM error is fired when the directory is deleted
     });
 
-    events.emit('addDir', { path: abspath });
+    // check to see if we already have files in there
+    return onDirChange(abspath)().then(() => {
+      events.emit('addDir', { path: abspath });
+    });
   };
 
-  globby.stream(pattern, {
+  const stream = globby.stream(pattern, {
     onlyFiles: false,
     markDirectories: true,
     cwd,
     concurrency: 1
-  }).on('data', file => {
+  });
+
+  stream.on('error', (err) => {
+    events.emit('error', err);
+  });
+
+  stream.pipe(through.obj((file, enc, cb) => {
     const abspath = path.resolve(cwd, file);
 
     if (/\/$/.test(file)) {
-      watchDir(abspath);
+      watchDir(abspath).then(() => cb());
     } else {
       watchFile(abspath);
+      cb();
     }
-  }).on('end', () => {
-    watchDir(cwd);
-    events.emit('ready');
-  }).on('error', (err) => {
-    events.emit('error', err);
-  });
+  }))
+    .on('data', () => {})
+    .on('end', () => {
+      watchDir(cwd).then(() => {
+        events.emit('ready');
+      });
+    });
 
   events.close = () => {
     closed = true;
