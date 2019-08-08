@@ -1,6 +1,6 @@
 # watchboy
 
-![watchboy logo](https://cdn.jsdelivr.net/gh/catdad-experiments/catdad-experiments-org@7005ab/watchboy/logo.jpg)
+[![watchboy logo](https://cdn.jsdelivr.net/gh/catdad-experiments/catdad-experiments-org@7005ab/watchboy/logo.jpg)](https://github.com/catdad/watchboy/)
 
 [![travis][travis.svg]][travis.link]
 [![npm-downloads][npm-downloads.svg]][npm.link]
