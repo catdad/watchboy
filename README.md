@@ -47,7 +47,7 @@ watcher.close();
 
 ## API
 
-### `watchboy(pattern, [options])` → `EventEmitter`
+### `watchboy(pattern, [options])` → [`EventEmitter`]
 
 Watchboy is exposed as a function which returns an event emitter. It takes the following parameters:
 * **`pattern`** _(`string|Array<string>`)_: A glob string or array of glob strings to watch, including positive and negative patterns. Directories are also expanded.
@@ -57,34 +57,36 @@ Watchboy is exposed as a function which returns an event emitter. It takes the f
 
 The following events are available on the watcher:
 
-### `.on('add', ({ path }) => {})` → `EventEmitter`
+### `.on('add', ({ path }) => {})` → [`EventEmitter`]
 
 Indicates that a new file was added. There is a single argument for this event, which has a `path` property containing the absolute path for the file that was added.
 
-### `.on('addDir', ({ path }) => {})` → `EventEmitter`
+### `.on('addDir', ({ path }) => {})` → [`EventEmitter`]
 
 Indicates that a new directory was added. There is a single argument for this event, which has a `path` property containing the absolute path for the directory that was added. Files in this new directory will also be watched according to the provided patterns.
 
-### `.on('change', ({ path }) => {})` → `EventEmitter`
+### `.on('change', ({ path }) => {})` → [`EventEmitter`]
 
 Indicates that a file has changed. There is a single argument for this event, which has a `path` property containing the absolute path for the file that has changed.
 
-### `.on('unlink', ({ path }) => {})` → `EventEmitter`
+### `.on('unlink', ({ path }) => {})` → [`EventEmitter`]
 
 Indicates that a watched file no longer exists. There is a single argument for this event, which has a `path` property containing the absolute path for the file that no longer exists.
 
-### `.on('unlinkDir', ({ path }) => {})` → `EventEmitter`
+### `.on('unlinkDir', ({ path }) => {})` → [`EventEmitter`]
 
 Indicates that a watched directory no longer exists. There is a single argument for this event, which has a `path` property containing the absolute path for the directory that no longer exists.
 
-### `.on('ready', () => {})`  → `EventEmitter`
+### `.on('ready', () => {})` → [`EventEmitter`]
 
 Indicates that all initial files and directories have been discovered. This even has no arguments. Note that new `add` and `addDir` events may fire after this, as new files and directories that match the patterns are created.
 
-### `.on('error', (err) => {})`  → `EventEmitter`
+### `.on('error', (err) => {})` → [`EventEmitter`]
 
 Indicates that an error has occurred. You must handle this event so that your application does not crash. This error has a single argument: an error which indicates what happened. Aside from standard error properties, there is an additional `path` property indicating the absolute path of the file or directory which triggered the error.
 
 ### `.close()`
 
 Stop watching all files. After this method is called, the watcher can no longer be used and no more events will fire.
+
+[`EventEmitter`]: https://nodejs.org/api/events.html#events_class_eventemitter
