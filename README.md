@@ -2,6 +2,19 @@
 
 ![watchboy logo](https://cdn.jsdelivr.net/gh/catdad-experiments/catdad-experiments-org@7005ab/watchboy/logo.jpg)
 
+[![travis][travis.svg]][travis.link]
+[![npm-downloads][npm-downloads.svg]][npm.link]
+[![npm-version][npm-version.svg]][npm.link]
+[![dm-david][dm-david.svg]][dm-david.link]
+
+[travis.svg]: https://travis-ci.com/catdad/watchboy.svg?branch=master
+[travis.link]: https://travis-ci.com/catdad/watchboy
+[npm-downloads.svg]: https://img.shields.io/npm/dm/watchboy.svg
+[npm.link]: https://www.npmjs.com/package/watchboy
+[npm-version.svg]: https://img.shields.io/npm/v/watchboy.svg
+[dm-david.svg]: https://david-dm.org/catdad/watchboy.svg
+[dm-david.link]: https://david-dm.org/catdad/watchboy
+
 Watch files and directories for changes. Fast. No hassle. No native dependencies. Works the same way on Windows, Linux, and MacOS. Low memory usage. Shows you a picture of a dog. It's everything you've ever wanted in a module.
 
 ## Install
