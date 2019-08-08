@@ -1,6 +1,8 @@
 # watchboy
 
-Watch files and directories for changes. Fast. No hassle. No native dependencies. Works the same way on Windows, Linux, and MacOS. Low memory usage. Everything you've ever wanted in a module.
+![watchboy logo](https://cdn.jsdelivr.net/gh/catdad-experiments/catdad-experiments-org@7005ab/watchboy/logo.jpg)
+
+Watch files and directories for changes. Fast. No hassle. No native dependencies. Works the same way on Windows, Linux, and MacOS. Low memory usage. Shows you a picture of a dog. It's everything you've ever wanted in a module.
 
 ## Install
 
