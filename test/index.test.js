@@ -45,7 +45,7 @@ describe('watchboy', () => {
       file('oranges/four.txt'),
       file('oranges/five.txt'),
       file('pineapples/six.txt'),
-    ].map(f => fs.outputFile(f, Math.random().toString(36))));
+    ].map(f => fs.outputFile(f, '')));
   });
   afterEach(async () => {
     if (watcher) {
@@ -143,7 +143,7 @@ describe('watchboy', () => {
       new Promise(r => {
         watcher.once('add', ({ path }) => r(path));
       }),
-      fs.outputFile(testFile, Math.random().toString(36))
+      fs.outputFile(testFile, '')
     ]);
 
     expect(addedFile).to.equal(testFile);
@@ -167,7 +167,7 @@ describe('watchboy', () => {
   });
 
   it('emits an "add" and "addDir" when a new file is added to a new directory in an already watched directory', async () => {
-    const testFile = file('kiwi/seven.txt');
+    const testFile = file('pineapple/wedges/seven.txt');
 
     await new Promise(r => {
       watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
@@ -180,7 +180,7 @@ describe('watchboy', () => {
       new Promise(r => {
         watcher.once('addDir', ({ path }) => r(path));
       }),
-      fs.outputFile(testFile, Math.random().toString(36))
+      fs.outputFile(testFile, '')
     ]);
 
     expect(addedFile).to.equal(testFile);
