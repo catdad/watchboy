@@ -59,3 +59,6 @@ const watcher = watchboy(patterns).on('add', ({ path }) => {
 //  * new files in directory are watched
 //  * new subdirectories are watched
 //  * new files in new subdirectories are watched
+
+// cd coverage
+// node ..\test\harness.js "**/*" "!lcov-report"
