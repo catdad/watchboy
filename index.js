@@ -111,11 +111,9 @@ module.exports = (pattern, {
     }
   };
 
-  const onFileChange = (abspath) => (type) => {
-    if (type === 'change') {
-      return void throttle(abspath, 'change', { path: abspath });
-    }
-
+  const onFileChange = (abspath) => () => {
+    // always stat on a file event due to bug in node 12
+    // https://github.com/nodejs/node/issues/27869
     exists(abspath).then(yes => {
       if (yes) {
         throttle(abspath, 'change', { path: abspath });
