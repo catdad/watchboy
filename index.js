@@ -146,9 +146,10 @@ module.exports = (pattern, {
         .filter(dir => !files[dir]);
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
-      diff(foundDirs, existingDirs).forEach(dir => {
-        watchDir(dir);
-      });
+
+      for (let dir of diff(foundDirs, existingDirs)) {
+        await watchDir(dir);
+      }
     } catch (err) {
       try {
         if (await exists(abspath)) {
