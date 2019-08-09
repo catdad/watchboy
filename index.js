@@ -30,12 +30,6 @@ const readdir = async (dir, pattern) => {
   return readdir(dir, pattern);
 };
 
-const realdir = (dir) => {
-  return new Promise((r, j) => {
-    fs.readdir(dir, (err, res) => err ? j(err) : r(res));
-  });
-};
-
 const exists = (abspath) => {
   return new Promise(r => fs.access(abspath, err => r(!err)));
 };
