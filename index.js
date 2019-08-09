@@ -112,25 +112,28 @@ module.exports = (pattern, {
     }
 
     if (!pending[abspath]) {
-      pending[abspath] = {};
-    }
-
-    if (pending[abspath].timer) {
-      clearTimeout(pending[abspath].timer);
-    } else {
-      // save only the first set of arguments
-      pending[abspath].data = { evname, evarg };
-      pending[abspath].priority = evMap[evname] || 0;
+      // save the first set of arguments
+      pending[abspath] = { evname, evarg, priority: evMap[evname] || 0, timer: null };
     }
 
     if (evMap[evname] > pending[abspath].priority) {
       // this event takes precedence over the queued one
-      pending[abspath].data = { evname, evarg };
+      pending[abspath].evname = evname;
+      pending[abspath].evarg = evarg;
       pending[abspath].priority = evMap[evname] || 0;
     }
 
+    if (pending[abspath].timer) {
+      clearTimeout(pending[abspath].timer);
+    }
+
     pending[abspath].timer = setTimeout(() => {
-      const { evname, evarg } = pending[abspath].data;
+      if (closed) {
+        delete pending[abspath];
+        return;
+      }
+
+      const { evname, evarg } = pending[abspath];
 
       if (evname !== 'change') {
         delete pending[abspath];
@@ -141,8 +144,13 @@ module.exports = (pattern, {
       // in node 12 that fires a delete as a change instead of rename
       // https://github.com/nodejs/node/issues/27869
       exists(abspath).then(yes => {
+        if (closed) {
+          delete pending[abspath];
+          return;
+        }
+
         // it is possible file could have been deleted during the check
-        const { evname, evarg } = pending[abspath].data;
+        const { evname, evarg } = pending[abspath];
         delete pending[abspath];
 
         events.emit(yes ? evname : 'unlink', evarg);
