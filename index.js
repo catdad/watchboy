@@ -5,13 +5,29 @@ const globby = require('globby');
 const diff = require('lodash.difference');
 const through = require('through2');
 
-const readdir = (dir, pattern) => {
-  return globby(pattern, {
+const readdir = async (dir, pattern) => {
+  const run = () => globby(pattern, {
     cwd: dir,
     deep: 1,
     onlyFiles: false,
     markDirectories: true
   });
+
+  if (fs.Dirent) {
+    return await run();
+  }
+
+  // node 8 has this nasty habbit of returning 0 entries on a readdir
+  // directly after a change even when there are entries, so we need
+  // to confirm that two runs read the same amount of entries
+  const one = await run();
+  const two = await run();
+
+  if (one.length === two.length) {
+    return two;
+  }
+
+  return readdir(dir, pattern);
 };
 
 const exists = (abspath) => {
@@ -148,16 +164,14 @@ module.exports = (pattern, {
 
       // find only files that exist in this directory
       const existingFiles = Object.keys(files)
-        .filter(file => path.dirname(file) === abspath)
-        .filter(file => !dirs[file]);
+        .filter(file => path.dirname(file) === abspath);
       // diff returns items in the first array that are not in the second
       diff(existingFiles, foundFiles).forEach(file => removeFile(file));
       diff(foundFiles, existingFiles).forEach(file => watchFile(file));
 
       // now do the same thing for directories
       const existingDirs = Object.keys(dirs)
-        .filter(dir => path.dirname(dir) === abspath)
-        .filter(dir => !files[dir]);
+        .filter(dir => path.dirname(dir) === abspath);
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
 
@@ -224,6 +238,12 @@ module.exports = (pattern, {
     }
   }).then(() => {
     return watchDir(cwd);
+  }).then(() => {
+    // this is the most annoying part, but it seems that watching does not
+    // occur immediately, yet there is no event for whenan fs watcher is
+    // actually ready... some of the internal bits use process.nextTick,
+    // so we'll wait a very random sad small amount of time here
+    return new Promise(r => setTimeout(() => r(), 20));
   }).then(() => {
     events.emit('ready');
   }).catch(err => {
