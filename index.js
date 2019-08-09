@@ -112,11 +112,19 @@ module.exports = (pattern, {
   };
 
   const onFileChange = (abspath) => (type) => {
-    if (type === 'rename') {
-      return removeFile(abspath);
+    if (type === 'change') {
+      return void throttle(abspath, 'change', { path: abspath });
     }
 
-    throttle(abspath, 'change', { path: abspath });
+    exists(abspath).then(yes => {
+      if (yes) {
+        throttle(abspath, 'change', { path: abspath });
+      } else {
+        removeFile(abspath);
+      }
+    }).catch(err => {
+      error(err, abspath);
+    });
   };
 
   const onDirChange = (abspath) => async () => {
