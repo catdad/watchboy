@@ -111,27 +111,29 @@ module.exports = (pattern, {
       return;
     }
 
-    const funcKey = `func : ${abspath}`;
+    if (!pending[abspath]) {
+      pending[abspath] = {};
+    }
 
-    if (pending[funcKey]) {
-      clearTimeout(pending[funcKey]);
+    if (pending[abspath].timer) {
+      clearTimeout(pending[abspath].timer);
     } else {
       // save only the first set of arguments
-      pending[abspath] = { evname, evarg, priority: evMap[evname] || 0 };
+      pending[abspath].data = { evname, evarg };
+      pending[abspath].priority = evMap[evname] || 0;
     }
 
     if (evMap[evname] > pending[abspath].priority) {
       // this event takes precedence over the queued one
-      pending[abspath] = { evname, evarg, priority: evMap[evname] || 0 };
+      pending[abspath].data = { evname, evarg };
+      pending[abspath].priority = evMap[evname] || 0;
     }
 
-    pending[funcKey] = setTimeout(() => {
-      const { evname, evarg } = pending[abspath];
+    pending[abspath].timer = setTimeout(() => {
+      const { evname, evarg } = pending[abspath].data;
 
       if (evname !== 'change') {
         delete pending[abspath];
-        delete pending[funcKey];
-
         return void events.emit(evname, evarg);
       }
 
@@ -140,10 +142,8 @@ module.exports = (pattern, {
       // https://github.com/nodejs/node/issues/27869
       exists(abspath).then(yes => {
         // it is possible file could have been deleted during the check
-        const { evname, evarg } = pending[abspath];
-
+        const { evname, evarg } = pending[abspath].data;
         delete pending[abspath];
-        delete pending[funcKey];
 
         events.emit(yes ? evname : 'unlink', evarg);
       }).catch(err => {
