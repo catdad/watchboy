@@ -3,15 +3,36 @@ const EventEmitter = require('events');
 const fs = require('fs');
 const globby = require('globby');
 const diff = require('lodash.difference');
-const through = require('through2');
+const unixify = require('unixify');
+const dirGlob = require('dir-glob');
+const micromatch = require('micromatch');
 
-const readdir = async (dir, pattern) => {
-  const run = () => globby(pattern, {
-    cwd: dir,
-    deep: 1,
-    onlyFiles: false,
-    markDirectories: true
-  });
+//const readdirP = async (...args) => {
+//  return await new Promise((r, j) => fs.readdir(...args, (err, res) => err ? j(err) : r(res)));
+//};
+
+const readdir = async (dir, patterns) => {
+  const run = async () => {
+    const entries = await globby('*', {
+      cwd: dir,
+      deep: 1,
+      onlyFiles: false,
+      markDirectories: true,
+      absolute: true
+    });
+
+    const matches = entries.filter((e) => {
+      let failed = false;
+
+      for (let p of patterns) {
+        failed = failed || !micromatch.isMatch(e, p);
+      }
+
+      return !failed;
+    });
+
+    return matches;
+  };
 
   if (fs.Dirent) {
     return await run();
@@ -27,28 +48,11 @@ const readdir = async (dir, pattern) => {
     return two;
   }
 
-  return readdir(dir, pattern);
+  return readdir(dir, patterns);
 };
 
 const exists = (abspath) => {
   return new Promise(r => fs.access(abspath, err => r(!err)));
-};
-
-const iterateStream = (stream, iterate) => {
-  return new Promise((resolve, reject) => {
-    stream.on('error', err => reject(err));
-
-    stream.pipe(through.obj((data, enc, cb) => {
-      iterate(data).then(() => {
-        cb();
-      }).catch(err => {
-        cb(err);
-      });
-    }))
-      .on('data', () => {})
-      .on('end', () => resolve())
-      .on('error', err => reject(err));
-  });
 };
 
 const evMap = {
@@ -59,10 +63,31 @@ const evMap = {
   unlinkDir: 5
 };
 
+const addDriveLetter = (basePath, str) => {
+  const drive = (basePath.match(/^([a-z]:)\\/i) || [])[1];
+  return drive ? `${drive}${str}` : str;
+};
+
 module.exports = (pattern, {
   cwd = process.cwd(),
   persistent = true
 } = {}) => {
+  // support passing relative paths and '.'
+  cwd = path.resolve(cwd);
+
+  const resolvedPatterns = (Array.isArray(pattern) ? pattern : [pattern]).map(str => {
+    const negative = str[0] === '!';
+
+    if (negative) {
+      str = str.slice(1);
+    }
+
+    const absPattern = addDriveLetter(cwd, path.posix.resolve(unixify(cwd), str));
+
+    return negative ? `!${absPattern}` : absPattern;
+  });
+  let absolutePatterns;
+
   const events = new EventEmitter();
   const dirs = {};
   const files = {};
@@ -120,7 +145,7 @@ module.exports = (pattern, {
       return;
     }
 
-    err.path = abspath;
+    err.path = path.resolve(abspath);
 
     events.emit('error', err);
   };
@@ -131,7 +156,7 @@ module.exports = (pattern, {
     if (watcher) {
       watcher.close();
       delete files[abspath];
-      throttle(abspath, 'unlink', { path: abspath });
+      throttle(abspath, 'unlink', { path: path.resolve(abspath) });
     }
   };
 
@@ -141,22 +166,22 @@ module.exports = (pattern, {
     if (watcher) {
       watcher.close();
       delete dirs[abspath];
-      throttle(abspath, 'unlinkDir', { path: abspath });
+      throttle(abspath, 'unlinkDir', { path: path.resolve(abspath) });
     }
   };
 
   const onFileChange = (abspath) => () => {
-    throttle(abspath, 'change', { path: abspath });
+    throttle(abspath, 'change', { path: path.resolve(abspath) });
   };
 
   const onDirChange = (abspath) => async () => {
     try {
-      const paths = await readdir(abspath, pattern);
+      const paths = await readdir(abspath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
-          dirs.push(path.resolve(abspath, file));
+          dirs.push(file.slice(0, -1));
         } else {
-          files.push(path.resolve(abspath, file));
+          files.push(file);
         }
 
         return [files, dirs];
@@ -164,14 +189,14 @@ module.exports = (pattern, {
 
       // find only files that exist in this directory
       const existingFiles = Object.keys(files)
-        .filter(file => path.dirname(file) === abspath);
+        .filter(file => path.posix.dirname(file) === abspath);
       // diff returns items in the first array that are not in the second
       diff(existingFiles, foundFiles).forEach(file => removeFile(file));
       diff(foundFiles, existingFiles).forEach(file => watchFile(file));
 
       // now do the same thing for directories
       const existingDirs = Object.keys(dirs)
-        .filter(dir => path.dirname(dir) === abspath);
+        .filter(dir => path.posix.dirname(dir) === abspath);
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
 
@@ -203,7 +228,7 @@ module.exports = (pattern, {
       // TODO what happens with this error?
     });
 
-    events.emit('add', { path: abspath });
+    events.emit('add', { path: path.resolve(abspath) });
   };
 
   const watchDir = (abspath) => {
@@ -219,25 +244,15 @@ module.exports = (pattern, {
     // check to see if we already have files in there that were
     // added during the initial glob
     return onDirChange(abspath)().then(() => {
-      events.emit('addDir', { path: abspath });
+      events.emit('addDir', { path: path.resolve(abspath) });
     });
   };
 
-  iterateStream(globby.stream(pattern, {
-    onlyFiles: false,
-    markDirectories: true,
-    cwd,
-    concurrency: 1
-  }), async (file) => {
-    const abspath = path.resolve(cwd, file);
-
-    if (/\/$/.test(file)) {
-      await watchDir(abspath);
-    } else {
-      await watchFile(abspath);
-    }
+  dirGlob(resolvedPatterns, { cwd }).then((p) => {
+    absolutePatterns = p;
   }).then(() => {
-    return watchDir(cwd);
+    const dir = addDriveLetter(cwd, unixify(cwd));
+    return watchDir(dir);
   }).then(() => {
     // this is the most annoying part, but it seems that watching does not
     // occur immediately, yet there is no event for whenan fs watcher is
