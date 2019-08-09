@@ -15,7 +15,7 @@
 [dm-david.svg]: https://david-dm.org/catdad/watchboy.svg
 [dm-david.link]: https://david-dm.org/catdad/watchboy
 
-Watch files and directories for changes. Fast. No hassle. No native dependencies. Works the same way on Windows, Linux, and MacOS. Low memory usage. Shows you a picture of a dog. It's everything you've ever wanted in a module.
+Watch files and directories for changes. Fast. No hassle. No native dependencies. Works the same way on Windows, Linux, and MacOS. Low memory usage. Shows you a picture of a dog. It's everything you've ever wanted in a module!
 
 ## Install
 
