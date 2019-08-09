@@ -38,7 +38,7 @@ watcher.on('unlink', ({ path }) => console.log('unlink:', path));
 watcher.on('unlinkDir', ({ path }) => console.log('unlinkDir:', path));
 
 watcher.on('ready', () => console.log('all initial files and directories found'));
-watcher.on('errpr', err => console.error('watcher error:', err));
+watcher.on('error', err => console.error('watcher error:', err));
 
 // stop all watching
 // watcher can no longer be used and it will no longer fire any events
