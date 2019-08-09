@@ -148,16 +148,14 @@ module.exports = (pattern, {
 
       // find only files that exist in this directory
       const existingFiles = Object.keys(files)
-        .filter(file => path.dirname(file) === abspath)
-        .filter(file => !dirs[file]);
+        .filter(file => path.dirname(file) === abspath);
       // diff returns items in the first array that are not in the second
       diff(existingFiles, foundFiles).forEach(file => removeFile(file));
       diff(foundFiles, existingFiles).forEach(file => watchFile(file));
 
       // now do the same thing for directories
       const existingDirs = Object.keys(dirs)
-        .filter(dir => path.dirname(dir) === abspath)
-        .filter(dir => !files[dir]);
+        .filter(dir => path.dirname(dir) === abspath);
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
 
