@@ -11,6 +11,26 @@ const micromatch = require('micromatch');
 //  return await new Promise((r, j) => fs.readdir(...args, (err, res) => err ? j(err) : r(res)));
 //};
 
+const isMatch = (input, patterns) => {
+  let failed = false;
+
+  for (let p of patterns) {
+    failed = failed || !micromatch.isMatch(input, p);
+  }
+
+  return !failed;
+};
+
+const isParent = (input, patterns) => {
+  for (let p of patterns) {
+    if (p.indexOf(input) === 0) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const readdir = async (dir, patterns) => {
   const run = async () => {
     const entries = await globby('*', {
@@ -21,15 +41,7 @@ const readdir = async (dir, patterns) => {
       absolute: true
     });
 
-    const matches = entries.filter((e) => {
-      let failed = false;
-
-      for (let p of patterns) {
-        failed = failed || !micromatch.isMatch(e, p);
-      }
-
-      return !failed;
-    });
+    const matches = entries.filter((e) => isMatch(e, patterns) || isParent(e, patterns));
 
     return matches;
   };

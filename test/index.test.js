@@ -196,7 +196,7 @@ describe('watchboy', () => {
     expect(changedFile).to.equal(testFile);
   });
 
-  it.skip('watches a nested pattern', async () => {
+  it('watches a nested pattern', async () => {
     await new Promise(r => {
       watcher = watchboy('pineapples/**/*', { cwd: temp, persistent: false }).on('ready', () => r());
     });
