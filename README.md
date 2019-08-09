@@ -90,3 +90,7 @@ Indicates that an error has occurred. You must handle this event so that your ap
 Stop watching all files. After this method is called, the watcher can no longer be used and no more events will fire.
 
 [`EventEmitter`]: https://nodejs.org/api/events.html#events_class_eventemitter
+
+## Performance
+
+Check out [this benchmark](https://github.com/catdad-experiments/filewatch-benchmarks) comparing `watchboy` to popular alternatives. Spoiler: it fairs really well.
