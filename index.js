@@ -5,12 +5,34 @@ const globby = require('globby');
 const diff = require('lodash.difference');
 const through = require('through2');
 
-const readdir = (dir, pattern) => {
-  return globby(pattern, {
+const readdir = async (dir, pattern) => {
+  const run = () => globby(pattern, {
     cwd: dir,
     deep: 1,
     onlyFiles: false,
     markDirectories: true
+  });
+
+  if (fs.Dirent) {
+    return await run();
+  }
+
+  // node 8 has this nasty habbit of returning 0 entries on a readdir
+  // directly after a change even when there are entries, so we need
+  // to confirm that two runs read the same amount of entries
+  const one = await run();
+  const two = await run();
+
+  if (one.length === two.length) {
+    return two;
+  }
+
+  return readdir(dir, pattern);
+};
+
+const realdir = (dir) => {
+  return new Promise((r, j) => {
+    fs.readdir(dir, (err, res) => err ? j(err) : r(res));
   });
 };
 
