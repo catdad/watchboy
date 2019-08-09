@@ -245,6 +245,12 @@ module.exports = (pattern, {
   }).then(() => {
     return watchDir(cwd);
   }).then(() => {
+    // this is the most annoying part, but it seems that watching does not
+    // occur immediately, yet there is no event for whenan fs watcher is
+    // actually ready... some of the internal bits use process.nextTick,
+    // so we'll wait a very random sad small amount of time here
+    return new Promise(r => setTimeout(() => r(), 20));
+  }).then(() => {
     events.emit('ready');
   }).catch(err => {
     events.emit('error', err);
