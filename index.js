@@ -74,10 +74,28 @@ module.exports = (pattern, {
 
     pending[funcKey] = setTimeout(() => {
       const { evname, evarg } = pending[abspath];
-      events.emit(evname, evarg);
 
-      delete pending[abspath];
-      delete pending[funcKey];
+      if (evname !== 'change') {
+        delete pending[abspath];
+        delete pending[funcKey];
+
+        return void events.emit(evname, evarg);
+      }
+
+      // always check that this file exists on a change event due to a bug
+      // in node 12 that fires a delete as a change instead of rename
+      // https://github.com/nodejs/node/issues/27869
+      exists(abspath).then(yes => {
+        // it is possible file could have been deleted during the check
+        const { evname, evarg } = pending[abspath];
+
+        delete pending[abspath];
+        delete pending[funcKey];
+
+        events.emit(yes ? evname : 'unlink', evarg);
+      }).catch(err => {
+        error(err, abspath);
+      });
     }, 50);
   };
 
@@ -112,17 +130,7 @@ module.exports = (pattern, {
   };
 
   const onFileChange = (abspath) => () => {
-    // always stat on a file event due to bug in node 12
-    // https://github.com/nodejs/node/issues/27869
-    exists(abspath).then(yes => {
-      if (yes) {
-        throttle(abspath, 'change', { path: abspath });
-      } else {
-        removeFile(abspath);
-      }
-    }).catch(err => {
-      error(err, abspath);
-    });
+    throttle(abspath, 'change', { path: abspath });
   };
 
   const onDirChange = (abspath) => async () => {
