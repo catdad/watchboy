@@ -31,7 +31,7 @@ const isParent = (input, patterns) => {
   return false;
 };
 
-const readdir = async (dir, patterns) => {
+const globdir = async (dir, patterns) => {
   const run = async () => {
     const entries = await globby('*', {
       cwd: dir,
@@ -60,7 +60,7 @@ const readdir = async (dir, patterns) => {
     return two;
   }
 
-  return readdir(dir, patterns);
+  return globdir(dir, patterns);
 };
 
 const exists = (abspath) => {
@@ -188,7 +188,7 @@ module.exports = (pattern, {
 
   const onDirChange = (abspath) => async () => {
     try {
-      const paths = await readdir(abspath, absolutePatterns);
+      const paths = await globdir(abspath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
           dirs.push(file.slice(0, -1));
