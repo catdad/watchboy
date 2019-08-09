@@ -6,7 +6,30 @@ const root = require('rootrequire');
 const { expect } = require('chai');
 const touch = promisify(require('touch'));
 
-const watchboy = require(root);
+const log = (...args) => {
+  if (process.env.TEST_DEBUG) {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+};
+
+const watchboy = (() => {
+  const lib = require(root);
+
+  return (...args) => {
+    const watcher = lib(...args);
+
+    watcher.on('add', ({ path }) => log('add:', path));
+    watcher.on('addDir', ({ path }) => log('addDir:', path));
+    watcher.on('change', ({ path }) => log('change:', path));
+    watcher.on('unlink', ({ path }) => log('unlink:', path));
+    watcher.on('unlinkDir', ({ path }) => log('unlinkDir:', path));
+    watcher.on('ready', () => log('ready'));
+    watcher.on('error', err => log('watcher error:', err.message));
+
+    return watcher;
+  };
+})();
 
 describe('watchboy', () => {
   const temp = path.resolve(root, 'temp');
