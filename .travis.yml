@@ -1,5 +1,9 @@
 language: node_js
 
+env:
+  global:
+    - TEST_DEBUG=1
+
 install:
   - npm install
 
