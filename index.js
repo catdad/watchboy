@@ -1,15 +1,39 @@
 const path = require('path');
 const EventEmitter = require('events');
 const fs = require('fs');
-const globby = require('globby');
 const diff = require('lodash.difference');
 const unixify = require('unixify');
 const dirGlob = require('dir-glob');
 const micromatch = require('micromatch');
+const pify = require('pify');
 
-//const readdirP = async (...args) => {
-//  return await new Promise((r, j) => fs.readdir(...args, (err, res) => err ? j(err) : r(res)));
-//};
+const pReaddir = pify(fs.readdir);
+const pStat = pify(fs.stat);
+
+const readdir = async (dir) => {
+  dir = dir.slice(-1) === '/' ? dir : `${dir}/`;
+
+  let result;
+
+  if (fs.Dirent) {
+    result = await pReaddir(dir, { withFileTypes: true });
+  } else {
+    const list = await pReaddir(dir);
+    result = [];
+
+    for (let name in list) {
+      result.push(Object.assign({ name }, await pStat(path.resolve(dir, name))));
+    }
+  }
+
+  return result.map(dirent => {
+    if (dirent.isDirectory()) {
+      return `${dir}${dirent.name}/`;
+    } else {
+      return `${dir}${dirent.name}`;
+    }
+  });
+};
 
 const isMatch = (input, patterns) => {
   let failed = false;
@@ -33,14 +57,7 @@ const isParent = (input, patterns) => {
 
 const globdir = async (dir, patterns) => {
   const run = async () => {
-    const entries = await globby('*', {
-      cwd: dir,
-      deep: 1,
-      onlyFiles: false,
-      markDirectories: true,
-      absolute: true
-    });
-
+    const entries = await readdir(dir);
     const matches = entries.filter((e) => isMatch(e, patterns) || isParent(e, patterns));
 
     return matches;
