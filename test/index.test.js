@@ -6,7 +6,30 @@ const root = require('rootrequire');
 const { expect } = require('chai');
 const touch = promisify(require('touch'));
 
-const watchboy = require(root);
+const log = (...args) => {
+  if (process.env.TEST_DEBUG) {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+};
+
+const watchboy = (() => {
+  const lib = require(root);
+
+  return (...args) => {
+    const watcher = lib(...args);
+
+    watcher.on('add', ({ path }) => log('add:', path));
+    watcher.on('addDir', ({ path }) => log('addDir:', path));
+    watcher.on('change', ({ path }) => log('change:', path));
+    watcher.on('unlink', ({ path }) => log('unlink:', path));
+    watcher.on('unlinkDir', ({ path }) => log('unlinkDir:', path));
+    watcher.on('ready', () => log('ready'));
+    watcher.on('error', err => log('watcher error:', err.message));
+
+    return watcher;
+  };
+})();
 
 describe('watchboy', () => {
   const temp = path.resolve(root, 'temp');
@@ -22,7 +45,7 @@ describe('watchboy', () => {
       file('oranges/four.txt'),
       file('oranges/five.txt'),
       file('pineapples/six.txt'),
-    ].map(f => fs.outputFile(f, Math.random().toString(36))));
+    ].map(f => fs.outputFile(f, '')));
   });
   afterEach(async () => {
     if (watcher) {
@@ -120,7 +143,7 @@ describe('watchboy', () => {
       new Promise(r => {
         watcher.once('add', ({ path }) => r(path));
       }),
-      fs.outputFile(testFile, Math.random().toString(36))
+      fs.outputFile(testFile, '')
     ]);
 
     expect(addedFile).to.equal(testFile);
@@ -144,7 +167,7 @@ describe('watchboy', () => {
   });
 
   it('emits an "add" and "addDir" when a new file is added to a new directory in an already watched directory', async () => {
-    const testFile = file('kiwi/seven.txt');
+    const testFile = file('pineapple/wedges/seven.txt');
 
     await new Promise(r => {
       watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
@@ -157,7 +180,7 @@ describe('watchboy', () => {
       new Promise(r => {
         watcher.once('addDir', ({ path }) => r(path));
       }),
-      fs.outputFile(testFile, Math.random().toString(36))
+      fs.outputFile(testFile, '')
     ]);
 
     expect(addedFile).to.equal(testFile);
@@ -171,6 +194,52 @@ describe('watchboy', () => {
     ]);
 
     expect(changedFile).to.equal(testFile);
+  });
+
+  it('watches a nested pattern', async () => {
+    await new Promise(r => {
+      watcher = watchboy('pineapples/**/*', { cwd: temp, persistent: false }).on('ready', () => r());
+    });
+
+    const actualAddedFile = file('pineapples/seven.txt');
+    const [addedFile] = await Promise.all([
+      new Promise(r => {
+        watcher.once('add', ({ path }) => r(path));
+      }),
+      fs.outputFile(actualAddedFile, '')
+    ]);
+
+    expect(addedFile).to.equal(actualAddedFile);
+
+    const actualChangedFile = file('pineapples/six.txt');
+    const [changedFile] = await Promise.all([
+      new Promise(r => {
+        watcher.once('change', ({ path }) => r(path));
+      }),
+      touch(actualChangedFile)
+    ]);
+
+    expect(changedFile).to.equal(actualChangedFile);
+
+    const actualAddedDir = file('pineapples/slices');
+    const [addedDir] = await Promise.all([
+      new Promise(r => {
+        watcher.once('addDir', ({ path }) => r(path));
+      }),
+      fs.ensureDir(actualAddedDir)
+    ]);
+
+    expect(addedDir).to.equal(actualAddedDir);
+
+    const actualNestedFile = file('pineapples/slices/eight.txt');
+    const [nestedFile] = await Promise.all([
+      new Promise(r => {
+        watcher.once('add', ({ path }) => r(path));
+      }),
+      fs.outputFile(actualNestedFile, '')
+    ]);
+
+    expect(nestedFile).to.equal(actualNestedFile);
   });
 
   describe('close', () => {

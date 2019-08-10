@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
 process.title = 'watch harness';
 
-const watchboy = require('./');
-//const chokidar = require('./test/chokidar.fixture.js');
+const watchboy = require('../');
+//const chokidar = require('./chokidar.fixture.js');
 
 const patterns = process.argv.slice(2);
 console.log('starting glob for:', patterns);
@@ -59,3 +59,6 @@ const watcher = watchboy(patterns).on('add', ({ path }) => {
 //  * new files in directory are watched
 //  * new subdirectories are watched
 //  * new files in new subdirectories are watched
+
+// cd coverage
+// node ..\test\harness.js "**/*" "!lcov-report"
