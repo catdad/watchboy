@@ -1,17 +1,67 @@
 const path = require('path');
 const EventEmitter = require('events');
 const fs = require('fs');
-const globby = require('globby');
 const diff = require('lodash.difference');
-const through = require('through2');
+const unixify = require('unixify');
+const dirGlob = require('dir-glob');
+const micromatch = require('micromatch');
+const pify = require('pify');
 
-const readdir = async (dir, pattern) => {
-  const run = () => globby(pattern, {
-    cwd: dir,
-    deep: 1,
-    onlyFiles: false,
-    markDirectories: true
+const pReaddir = pify(fs.readdir);
+const pStat = pify(fs.stat);
+
+const readdir = async (dir) => {
+  dir = dir.slice(-1) === '/' ? dir : `${dir}/`;
+
+  let result;
+
+  if (fs.Dirent) {
+    result = await pReaddir(dir, { withFileTypes: true });
+  } else {
+    const list = await pReaddir(dir);
+    result = [];
+
+    for (let name of list) {
+      result.push(Object.assign(await pStat(`${dir}${name}`), { name }));
+    }
+  }
+
+  return result.map(dirent => {
+    if (dirent.isDirectory()) {
+      return `${dir}${dirent.name}/`;
+    } else {
+      return `${dir}${dirent.name}`;
+    }
   });
+};
+
+const isMatch = (input, patterns) => {
+  let failed = false;
+
+  for (let p of patterns) {
+    failed = failed || !micromatch.isMatch(input, p);
+  }
+
+  return !failed;
+};
+
+const isParent = (input, patterns) => {
+  for (let p of patterns) {
+    if (p.indexOf(input) === 0) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const globdir = async (dir, patterns) => {
+  const run = async () => {
+    const entries = await readdir(dir);
+    const matches = entries.filter((e) => isMatch(e, patterns) || isParent(e, patterns));
+
+    return matches;
+  };
 
   if (fs.Dirent) {
     return await run();
@@ -27,28 +77,11 @@ const readdir = async (dir, pattern) => {
     return two;
   }
 
-  return readdir(dir, pattern);
+  return globdir(dir, patterns);
 };
 
 const exists = (abspath) => {
   return new Promise(r => fs.access(abspath, err => r(!err)));
-};
-
-const iterateStream = (stream, iterate) => {
-  return new Promise((resolve, reject) => {
-    stream.on('error', err => reject(err));
-
-    stream.pipe(through.obj((data, enc, cb) => {
-      iterate(data).then(() => {
-        cb();
-      }).catch(err => {
-        cb(err);
-      });
-    }))
-      .on('data', () => {})
-      .on('end', () => resolve())
-      .on('error', err => reject(err));
-  });
 };
 
 const evMap = {
@@ -59,10 +92,31 @@ const evMap = {
   unlinkDir: 5
 };
 
+const addDriveLetter = (basePath, str) => {
+  const drive = (basePath.match(/^([a-z]:)\\/i) || [])[1];
+  return drive ? `${drive}${str}` : str;
+};
+
 module.exports = (pattern, {
   cwd = process.cwd(),
   persistent = true
 } = {}) => {
+  // support passing relative paths and '.'
+  cwd = path.resolve(cwd);
+
+  const resolvedPatterns = (Array.isArray(pattern) ? pattern : [pattern]).map(str => {
+    const negative = str[0] === '!';
+
+    if (negative) {
+      str = str.slice(1);
+    }
+
+    const absPattern = addDriveLetter(cwd, path.posix.resolve(unixify(cwd), str));
+
+    return negative ? `!${absPattern}` : absPattern;
+  });
+  let absolutePatterns;
+
   const events = new EventEmitter();
   const dirs = {};
   const files = {};
@@ -74,27 +128,32 @@ module.exports = (pattern, {
       return;
     }
 
-    const funcKey = `func : ${abspath}`;
-
-    if (pending[funcKey]) {
-      clearTimeout(pending[funcKey]);
-    } else {
-      // save only the first set of arguments
-      pending[abspath] = { evname, evarg, priority: evMap[evname] || 0 };
+    if (!pending[abspath]) {
+      // save the first set of arguments
+      pending[abspath] = { evname, evarg, priority: evMap[evname] || 0, timer: null };
     }
 
     if (evMap[evname] > pending[abspath].priority) {
       // this event takes precedence over the queued one
-      pending[abspath] = { evname, evarg, priority: evMap[evname] || 0 };
+      pending[abspath].evname = evname;
+      pending[abspath].evarg = evarg;
+      pending[abspath].priority = evMap[evname] || 0;
     }
 
-    pending[funcKey] = setTimeout(() => {
+    if (pending[abspath].timer) {
+      clearTimeout(pending[abspath].timer);
+    }
+
+    pending[abspath].timer = setTimeout(() => {
+      if (closed) {
+        delete pending[abspath];
+        return;
+      }
+
       const { evname, evarg } = pending[abspath];
 
       if (evname !== 'change') {
         delete pending[abspath];
-        delete pending[funcKey];
-
         return void events.emit(evname, evarg);
       }
 
@@ -102,11 +161,14 @@ module.exports = (pattern, {
       // in node 12 that fires a delete as a change instead of rename
       // https://github.com/nodejs/node/issues/27869
       exists(abspath).then(yes => {
+        if (closed) {
+          delete pending[abspath];
+          return;
+        }
+
         // it is possible file could have been deleted during the check
         const { evname, evarg } = pending[abspath];
-
         delete pending[abspath];
-        delete pending[funcKey];
 
         events.emit(yes ? evname : 'unlink', evarg);
       }).catch(err => {
@@ -120,7 +182,7 @@ module.exports = (pattern, {
       return;
     }
 
-    err.path = abspath;
+    err.path = path.resolve(abspath);
 
     events.emit('error', err);
   };
@@ -131,7 +193,7 @@ module.exports = (pattern, {
     if (watcher) {
       watcher.close();
       delete files[abspath];
-      throttle(abspath, 'unlink', { path: abspath });
+      throttle(abspath, 'unlink', { path: path.resolve(abspath) });
     }
   };
 
@@ -141,22 +203,22 @@ module.exports = (pattern, {
     if (watcher) {
       watcher.close();
       delete dirs[abspath];
-      throttle(abspath, 'unlinkDir', { path: abspath });
+      throttle(abspath, 'unlinkDir', { path: path.resolve(abspath) });
     }
   };
 
   const onFileChange = (abspath) => () => {
-    throttle(abspath, 'change', { path: abspath });
+    throttle(abspath, 'change', { path: path.resolve(abspath) });
   };
 
   const onDirChange = (abspath) => async () => {
     try {
-      const paths = await readdir(abspath, pattern);
+      const paths = await globdir(abspath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
-          dirs.push(path.resolve(abspath, file));
+          dirs.push(file.slice(0, -1));
         } else {
-          files.push(path.resolve(abspath, file));
+          files.push(file);
         }
 
         return [files, dirs];
@@ -164,14 +226,14 @@ module.exports = (pattern, {
 
       // find only files that exist in this directory
       const existingFiles = Object.keys(files)
-        .filter(file => path.dirname(file) === abspath);
+        .filter(file => path.posix.dirname(file) === abspath);
       // diff returns items in the first array that are not in the second
       diff(existingFiles, foundFiles).forEach(file => removeFile(file));
       diff(foundFiles, existingFiles).forEach(file => watchFile(file));
 
       // now do the same thing for directories
       const existingDirs = Object.keys(dirs)
-        .filter(dir => path.dirname(dir) === abspath);
+        .filter(dir => path.posix.dirname(dir) === abspath);
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
 
@@ -203,7 +265,7 @@ module.exports = (pattern, {
       // TODO what happens with this error?
     });
 
-    events.emit('add', { path: abspath });
+    events.emit('add', { path: path.resolve(abspath) });
   };
 
   const watchDir = (abspath) => {
@@ -219,25 +281,15 @@ module.exports = (pattern, {
     // check to see if we already have files in there that were
     // added during the initial glob
     return onDirChange(abspath)().then(() => {
-      events.emit('addDir', { path: abspath });
+      events.emit('addDir', { path: path.resolve(abspath) });
     });
   };
 
-  iterateStream(globby.stream(pattern, {
-    onlyFiles: false,
-    markDirectories: true,
-    cwd,
-    concurrency: 1
-  }), async (file) => {
-    const abspath = path.resolve(cwd, file);
-
-    if (/\/$/.test(file)) {
-      await watchDir(abspath);
-    } else {
-      await watchFile(abspath);
-    }
+  dirGlob(resolvedPatterns, { cwd }).then((p) => {
+    absolutePatterns = p;
   }).then(() => {
-    return watchDir(cwd);
+    const dir = addDriveLetter(cwd, unixify(cwd));
+    return watchDir(dir);
   }).then(() => {
     // this is the most annoying part, but it seems that watching does not
     // occur immediately, yet there is no event for whenan fs watcher is

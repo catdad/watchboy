@@ -18,9 +18,11 @@
   },
   "homepage": "https://github.com/catdad/watchboy#readme",
   "dependencies": {
-    "globby": "^10.0.1",
+    "dir-glob": "^3.0.1",
     "lodash.difference": "^4.5.0",
-    "through2": "^3.0.1"
+    "micromatch": "^4.0.2",
+    "pify": "^4.0.1",
+    "unixify": "^1.0.0"
   },
   "devDependencies": {
     "chai": "^4.2.0",
