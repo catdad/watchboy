@@ -21,8 +21,8 @@ const readdir = async (dir) => {
     const list = await pReaddir(dir);
     result = [];
 
-    for (let name in list) {
-      result.push(Object.assign({ name }, await pStat(path.resolve(dir, name))));
+    for (let name of list) {
+      result.push(Object.assign(await pStat(`${dir}${name}`), { name }));
     }
   }
 
