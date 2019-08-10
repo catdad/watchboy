@@ -10,7 +10,17 @@
     "type": "git",
     "url": "git+https://github.com/catdad/watchboy.git"
   },
-  "keywords": [],
+  "keywords": [
+    "fs",
+    "watch",
+    "file",
+    "watcher",
+    "watching",
+    "glob",
+    "globbing",
+    "pattern",
+    "wildcard"
+  ],
   "author": "Kiril Vatev <vatev.1@gmail.com>",
   "license": "ISC",
   "bugs": {
