@@ -140,7 +140,7 @@ module.exports = (pattern, {
       pending[abspath].priority = evMap[evname] || 0;
     }
 
-    if (pending[abspath].timer) {
+    if (pending[abspath].timer && pending[abspath].timer !== -1) {
       clearTimeout(pending[abspath].timer);
     }
 
@@ -156,6 +156,10 @@ module.exports = (pattern, {
         delete pending[abspath];
         return void events.emit(evname, evarg);
       }
+
+      // prevent events queued after the original timeout fired
+      // from scheduling another event
+      pending[abspath].timer = -1;
 
       // always check that this file exists on a change event due to a bug
       // in node 12 that fires a delete as a change instead of rename
