@@ -10,6 +10,18 @@ const pify = require('pify');
 const pReaddir = pify(fs.readdir);
 const pStat = pify(fs.stat);
 
+const stat = async (file) => {
+  try {
+    return await pStat(file);
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      return null;
+    }
+
+    throw e;
+  }
+};
+
 const readdir = async (dir) => {
   dir = dir.slice(-1) === '/' ? dir : `${dir}/`;
 
@@ -118,6 +130,7 @@ module.exports = (pattern, {
   let absolutePatterns;
 
   const events = new EventEmitter();
+  const now = (new Date()).toISOString();
   const dirs = {};
   const files = {};
   const pending = {};
@@ -164,7 +177,7 @@ module.exports = (pattern, {
       // always check that this file exists on a change event due to a bug
       // in node 12 that fires a delete as a change instead of rename
       // https://github.com/nodejs/node/issues/27869
-      exists(abspath).then(yes => {
+      stat(abspath).then(stat => {
         if (closed) {
           delete pending[abspath];
           return;
@@ -174,7 +187,16 @@ module.exports = (pattern, {
         const { evname, evarg } = pending[abspath];
         delete pending[abspath];
 
-        events.emit(yes ? evname : 'unlink', evarg);
+        // file no longer exists, should fire unlink
+        if (stat === null || evname === 'unlink') {
+          return void events.emit('unlink', evarg);
+        }
+
+        // the file actually changed
+        if (files[abspath]._wb_modified < stat.mtime.toISOString()) {
+          files[abspath]._wb_modified = stat.mtime.toISOString();
+          return void events.emit('change', evarg);
+        }
       }).catch(err => {
         error(err, abspath);
       });
@@ -265,6 +287,7 @@ module.exports = (pattern, {
     }
 
     files[abspath] = watch(abspath, onFileChange(abspath));
+    files[abspath]._wb_modified = now;
     files[abspath].on('error', (/* err */) => {
       // TODO what happens with this error?
     });
