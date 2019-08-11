@@ -1,10 +1,14 @@
 /* eslint-env mocha */
-const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs-extra');
 const root = require('rootrequire');
 const { expect } = require('chai');
-const touch = promisify(require('touch'));
+const touch = async filepath => {
+  const fd = await fs.open(filepath, 'a');
+  const now = new Date();
+  await fs.futimes(fd, now, now);
+  await fs.close(fd);
+};
 
 const log = (...args) => {
   if (process.env.TEST_DEBUG) {
