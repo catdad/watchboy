@@ -40,8 +40,7 @@
     "eslint": "^5.16.0",
     "fs-extra": "^8.1.0",
     "mocha": "^6.2.0",
-    "rootrequire": "^1.0.0",
-    "touch": "^3.1.0"
+    "rootrequire": "^1.0.0"
   },
   "engines": {
     "node": ">=8.0.0"

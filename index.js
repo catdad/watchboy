@@ -10,6 +10,18 @@ const pify = require('pify');
 const pReaddir = pify(fs.readdir);
 const pStat = pify(fs.stat);
 
+const stat = async (file) => {
+  try {
+    return await pStat(file);
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      return null;
+    }
+
+    throw e;
+  }
+};
+
 const readdir = async (dir) => {
   dir = dir.slice(-1) === '/' ? dir : `${dir}/`;
 
@@ -140,7 +152,7 @@ module.exports = (pattern, {
       pending[abspath].priority = evMap[evname] || 0;
     }
 
-    if (pending[abspath].timer) {
+    if (pending[abspath].timer && pending[abspath].timer !== -1) {
       clearTimeout(pending[abspath].timer);
     }
 
@@ -157,10 +169,14 @@ module.exports = (pattern, {
         return void events.emit(evname, evarg);
       }
 
+      // prevent events queued after the original timeout fired
+      // from scheduling another event
+      pending[abspath].timer = -1;
+
       // always check that this file exists on a change event due to a bug
       // in node 12 that fires a delete as a change instead of rename
       // https://github.com/nodejs/node/issues/27869
-      exists(abspath).then(yes => {
+      stat(abspath).then(stat => {
         if (closed) {
           delete pending[abspath];
           return;
@@ -170,7 +186,12 @@ module.exports = (pattern, {
         const { evname, evarg } = pending[abspath];
         delete pending[abspath];
 
-        events.emit(yes ? evname : 'unlink', evarg);
+        // file no longer exists, should fire unlink
+        if (stat === null || evname === 'unlink') {
+          return void events.emit('unlink', evarg);
+        }
+
+        return void events.emit('change', evarg);
       }).catch(err => {
         error(err, abspath);
       });
