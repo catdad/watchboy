@@ -77,7 +77,7 @@ const globdir = async (dir, patterns) => {
     return matches;
   };
 
-  if (fs.Dirent) {
+  if (fs.Dirent && process.platform !== 'darwin') {
     return await run();
   }
 
