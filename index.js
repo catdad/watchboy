@@ -192,11 +192,13 @@ module.exports = (pattern, {
           return void events.emit('unlink', evarg);
         }
 
+        console.log(abspath, files[abspath]._wb_modified, stat.mtime.toISOString());
+
         // the file actually changed
-        if (files[abspath]._wb_modified < stat.mtime.toISOString()) {
-          files[abspath]._wb_modified = stat.mtime.toISOString();
+//        if (files[abspath]._wb_modified < stat.mtime.toISOString()) {
+//          files[abspath]._wb_modified = stat.mtime.toISOString();
           return void events.emit('change', evarg);
-        }
+//        }
       }).catch(err => {
         error(err, abspath);
       });
