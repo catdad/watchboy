@@ -7,6 +7,8 @@ const dirGlob = require('dir-glob');
 const micromatch = require('micromatch');
 const pify = require('pify');
 
+const EV_DISCOVER = '_wb_discover';
+
 const pReaddir = pify(fs.readdir);
 const pStat = pify(fs.stat);
 
@@ -241,7 +243,7 @@ module.exports = (pattern, {
     const changepath = `${abspath}/${name}`;
 
     // this is a file change inside the directory
-    if (type !== '_wb_discover' && files[changepath]) {
+    if (type !== EV_DISCOVER && files[changepath]) {
       throttle(changepath, 'change', { path: path.resolve(changepath) });
       return;
     }
@@ -301,7 +303,7 @@ module.exports = (pattern, {
 
     // check to see if we already have files in there that were
     // added during the initial glob
-    return onDirChange(abspath)('_wd_discover').then(() => {
+    return onDirChange(abspath)(EV_DISCOVER).then(() => {
       events.emit('addDir', { path: path.resolve(abspath) });
     });
   };
