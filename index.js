@@ -27,7 +27,7 @@ const readdir = async (dir) => {
 
   let result;
 
-  if (fs.Dirent) {
+  if (fs.Dirent && process.platform !== 'darwin') {
     result = await pReaddir(dir, { withFileTypes: true });
   } else {
     const list = await pReaddir(dir);
@@ -35,6 +35,8 @@ const readdir = async (dir) => {
 
     for (let name of list) {
       result.push(Object.assign(await pStat(`${dir}${name}`), { name }));
+      const s = result[result.length - 1];
+      console.log(`${dir}${name}`, s.ino);
     }
   }
 
