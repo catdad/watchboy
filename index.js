@@ -130,7 +130,6 @@ module.exports = (pattern, {
   let absolutePatterns;
 
   const events = new EventEmitter();
-  const now = (new Date()).toISOString();
   const dirs = {};
   const files = {};
   const pending = {};
@@ -283,7 +282,6 @@ module.exports = (pattern, {
     }
 
     files[abspath] = watch(abspath, onFileChange(abspath));
-    files[abspath]._wb_modified = now;
     files[abspath].on('error', (/* err */) => {
       // TODO what happens with this error?
     });
