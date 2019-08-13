@@ -289,14 +289,12 @@ module.exports = (pattern, {
     }
   };
 
-  const watch = (file, func) => fs.watch(file, { persistent }, func);
-
   const watchDir = (abspath) => {
     if (dirs[abspath]) {
       return;
     }
 
-    dirs[abspath] = watch(abspath, onDirChange(abspath));
+    dirs[abspath] = fs.watch(abspath, { persistent }, onDirChange(abspath));
     dirs[abspath].on('error', (/* err */) => {
       // TODO an EPERM error is fired when the directory is deleted
     });
