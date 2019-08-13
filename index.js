@@ -212,7 +212,6 @@ module.exports = (pattern, {
     const watcher = files[abspath];
 
     if (watcher) {
-      watcher.close();
       delete files[abspath];
       throttle(abspath, 'unlink', { path: path.resolve(abspath) });
     }
@@ -228,11 +227,25 @@ module.exports = (pattern, {
     }
   };
 
-  const onFileChange = (abspath) => () => {
-    throttle(abspath, 'change', { path: path.resolve(abspath) });
+  const addFile = (abspath) => {
+    if (files[abspath]) {
+      return;
+    }
+
+    files[abspath] = 1;
+
+    events.emit('add', { path: path.resolve(abspath) });
   };
 
-  const onDirChange = (abspath) => async () => {
+  const onDirChange = (abspath) => async (type, name) => {
+    const changepath = `${abspath}/${name}`;
+
+    // this is a file change inside the directory
+    if (type !== '_wb_discover' && files[changepath]) {
+      throttle(changepath, 'change', { path: path.resolve(changepath) });
+      return;
+    }
+
     try {
       const paths = await globdir(abspath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
@@ -250,7 +263,7 @@ module.exports = (pattern, {
         .filter(file => path.posix.dirname(file) === abspath);
       // diff returns items in the first array that are not in the second
       diff(existingFiles, foundFiles).forEach(file => removeFile(file));
-      diff(foundFiles, existingFiles).forEach(file => watchFile(file));
+      diff(foundFiles, existingFiles).forEach(file => addFile(file));
 
       // now do the same thing for directories
       const existingDirs = Object.keys(dirs)
@@ -276,19 +289,6 @@ module.exports = (pattern, {
 
   const watch = (file, func) => fs.watch(file, { persistent }, func);
 
-  const watchFile = (abspath) => {
-    if (files[abspath]) {
-      return;
-    }
-
-    files[abspath] = watch(abspath, onFileChange(abspath));
-    files[abspath].on('error', (/* err */) => {
-      // TODO what happens with this error?
-    });
-
-    events.emit('add', { path: path.resolve(abspath) });
-  };
-
   const watchDir = (abspath) => {
     if (dirs[abspath]) {
       return;
@@ -301,7 +301,7 @@ module.exports = (pattern, {
 
     // check to see if we already have files in there that were
     // added during the initial glob
-    return onDirChange(abspath)().then(() => {
+    return onDirChange(abspath)('_wd_discover').then(() => {
       events.emit('addDir', { path: path.resolve(abspath) });
     });
   };
