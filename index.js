@@ -240,6 +240,8 @@ module.exports = (pattern, {
   };
 
   const onDirChange = (abspath) => async (type, name) => {
+    console.log('  > DIRCHANGE:', abspath, type, name);
+
     const changepath = `${abspath}/${name}`;
 
     // this is a file change inside the directory
