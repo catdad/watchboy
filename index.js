@@ -245,9 +245,8 @@ module.exports = (pattern, {
   };
 
   const onDirChange = (abspath) => async (type, name) => {
-    console.log('  > DIRCHANGE:', abspath, type, name);
-
     // ignore all events before the app has finished starting
+    // this is aprticularly an issue on MacOS
     if (type !== EV_DISCOVER && state === STATE.STARTING) {
       return;
     }
