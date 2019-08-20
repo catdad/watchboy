@@ -141,10 +141,9 @@ module.exports = (pattern, {
   const files = {};
   const pending = {};
   let state = STATE.STARTING;
-  let closed = false;
 
   const throttle = (abspath, evname, evarg) => {
-    if (closed) {
+    if (state === STATE.CLOSED) {
       return;
     }
 
@@ -165,7 +164,7 @@ module.exports = (pattern, {
     }
 
     pending[abspath].timer = setTimeout(() => {
-      if (closed) {
+      if (state === STATE.CLOSED) {
         delete pending[abspath];
         return;
       }
@@ -185,7 +184,7 @@ module.exports = (pattern, {
       // in node 12 that fires a delete as a change instead of rename
       // https://github.com/nodejs/node/issues/27869
       stat(abspath).then(stat => {
-        if (closed) {
+        if (state === STATE.CLOSED) {
           delete pending[abspath];
           return;
         }
@@ -207,7 +206,7 @@ module.exports = (pattern, {
   };
 
   const error = (err, abspath) => {
-    if (closed) {
+    if (state === STATE.CLOSED) {
       return;
     }
 
@@ -338,7 +337,6 @@ module.exports = (pattern, {
   });
 
   events.close = () => {
-    closed = true;
     state = STATE.CLOSED;
 
     for (let file in files) {
