@@ -8,6 +8,11 @@ const micromatch = require('micromatch');
 const pify = require('pify');
 
 const EV_DISCOVER = '_wb_discover';
+const STATE = {
+  STARTING: 'starting',
+  READY: 'ready',
+  CLOSED: 'closed'
+};
 
 const pReaddir = pify(fs.readdir);
 const pStat = pify(fs.stat);
@@ -135,6 +140,7 @@ module.exports = (pattern, {
   const dirs = {};
   const files = {};
   const pending = {};
+  let state = STATE.STARTING;
   let closed = false;
 
   const throttle = (abspath, evname, evarg) => {
@@ -242,6 +248,11 @@ module.exports = (pattern, {
   const onDirChange = (abspath) => async (type, name) => {
     console.log('  > DIRCHANGE:', abspath, type, name);
 
+    // ignore all events before the app has finished starting
+    if (type !== EV_DISCOVER && state === STATE.STARTING) {
+      return;
+    }
+
     const changepath = `${abspath}/${name}`;
 
     // this is a file change inside the directory
@@ -320,6 +331,7 @@ module.exports = (pattern, {
     // so we'll wait a very random sad small amount of time here
     return new Promise(r => setTimeout(() => r(), 20));
   }).then(() => {
+    state = STATE.READY;
     events.emit('ready');
   }).catch(err => {
     events.emit('error', err);
@@ -327,6 +339,7 @@ module.exports = (pattern, {
 
   events.close = () => {
     closed = true;
+    state = STATE.CLOSED;
 
     for (let file in files) {
       removeFile(file);
