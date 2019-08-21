@@ -7,6 +7,13 @@ const dirGlob = require('dir-glob');
 const micromatch = require('micromatch');
 const pify = require('pify');
 
+const EV_DISCOVER = '_wb_discover';
+const STATE = {
+  STARTING: 'starting',
+  READY: 'ready',
+  CLOSED: 'closed'
+};
+
 const pReaddir = pify(fs.readdir);
 const pStat = pify(fs.stat);
 
@@ -75,7 +82,7 @@ const globdir = async (dir, patterns) => {
     return matches;
   };
 
-  if (fs.Dirent) {
+  if (fs.Dirent && process.platform !== 'darwin') {
     return await run();
   }
 
@@ -133,10 +140,10 @@ module.exports = (pattern, {
   const dirs = {};
   const files = {};
   const pending = {};
-  let closed = false;
+  let state = STATE.STARTING;
 
   const throttle = (abspath, evname, evarg) => {
-    if (closed) {
+    if (state === STATE.CLOSED) {
       return;
     }
 
@@ -157,7 +164,7 @@ module.exports = (pattern, {
     }
 
     pending[abspath].timer = setTimeout(() => {
-      if (closed) {
+      if (state === STATE.CLOSED) {
         delete pending[abspath];
         return;
       }
@@ -177,7 +184,7 @@ module.exports = (pattern, {
       // in node 12 that fires a delete as a change instead of rename
       // https://github.com/nodejs/node/issues/27869
       stat(abspath).then(stat => {
-        if (closed) {
+        if (state === STATE.CLOSED) {
           delete pending[abspath];
           return;
         }
@@ -199,7 +206,7 @@ module.exports = (pattern, {
   };
 
   const error = (err, abspath) => {
-    if (closed) {
+    if (state === STATE.CLOSED) {
       return;
     }
 
@@ -212,7 +219,6 @@ module.exports = (pattern, {
     const watcher = files[abspath];
 
     if (watcher) {
-      watcher.close();
       delete files[abspath];
       throttle(abspath, 'unlink', { path: path.resolve(abspath) });
     }
@@ -228,11 +234,31 @@ module.exports = (pattern, {
     }
   };
 
-  const onFileChange = (abspath) => () => {
-    throttle(abspath, 'change', { path: path.resolve(abspath) });
+  const addFile = (abspath) => {
+    if (files[abspath]) {
+      return;
+    }
+
+    files[abspath] = 1;
+
+    events.emit('add', { path: path.resolve(abspath) });
   };
 
-  const onDirChange = (abspath) => async () => {
+  const onDirChange = (abspath) => async (type, name) => {
+    // ignore all events before the app has finished starting
+    // this is aprticularly an issue on MacOS
+    if (type !== EV_DISCOVER && state === STATE.STARTING) {
+      return;
+    }
+
+    const changepath = `${abspath}/${name}`;
+
+    // this is a file change inside the directory
+    if (type !== EV_DISCOVER && files[changepath]) {
+      throttle(changepath, 'change', { path: path.resolve(changepath) });
+      return;
+    }
+
     try {
       const paths = await globdir(abspath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
@@ -250,7 +276,7 @@ module.exports = (pattern, {
         .filter(file => path.posix.dirname(file) === abspath);
       // diff returns items in the first array that are not in the second
       diff(existingFiles, foundFiles).forEach(file => removeFile(file));
-      diff(foundFiles, existingFiles).forEach(file => watchFile(file));
+      diff(foundFiles, existingFiles).forEach(file => addFile(file));
 
       // now do the same thing for directories
       const existingDirs = Object.keys(dirs)
@@ -274,34 +300,19 @@ module.exports = (pattern, {
     }
   };
 
-  const watch = (file, func) => fs.watch(file, { persistent }, func);
-
-  const watchFile = (abspath) => {
-    if (files[abspath]) {
-      return;
-    }
-
-    files[abspath] = watch(abspath, onFileChange(abspath));
-    files[abspath].on('error', (/* err */) => {
-      // TODO what happens with this error?
-    });
-
-    events.emit('add', { path: path.resolve(abspath) });
-  };
-
   const watchDir = (abspath) => {
     if (dirs[abspath]) {
       return;
     }
 
-    dirs[abspath] = watch(abspath, onDirChange(abspath));
+    dirs[abspath] = fs.watch(abspath, { persistent }, onDirChange(abspath));
     dirs[abspath].on('error', (/* err */) => {
       // TODO an EPERM error is fired when the directory is deleted
     });
 
     // check to see if we already have files in there that were
     // added during the initial glob
-    return onDirChange(abspath)().then(() => {
+    return onDirChange(abspath)(EV_DISCOVER).then(() => {
       events.emit('addDir', { path: path.resolve(abspath) });
     });
   };
@@ -318,13 +329,14 @@ module.exports = (pattern, {
     // so we'll wait a very random sad small amount of time here
     return new Promise(r => setTimeout(() => r(), 20));
   }).then(() => {
+    state = STATE.READY;
     events.emit('ready');
   }).catch(err => {
     events.emit('error', err);
   });
 
   events.close = () => {
-    closed = true;
+    state = STATE.CLOSED;
 
     for (let file in files) {
       removeFile(file);
