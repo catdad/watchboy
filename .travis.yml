@@ -34,3 +34,17 @@ jobs:
       node_js: '8'
       env:
         - FORCE_COLOR=1
+    - stage: npm release
+      if: tag IS present
+      os: linux
+      node_js: '12'
+      install: skip
+      script: echo "Deploying to npm ..."
+      deploy:
+        provider: npm
+        email: vatev.1+npm@gmail.com
+        api_key:
+          secure: B2V/NDz1zASEicmKYdSfkoWIUymIem2tF4S3LApNnxi9AfCuwfQuFSYl/XCeNDKApvSvNVJ5vVSzir0daGIv9Ce4VfaKId3kVsyQJ3nEX1jUZcEsZYbhSmPQi5ODyOpCFSL9PCc9XsZ+ajjQVUp/V6gjBH/7cyEbTpdZ1VkomcDp8pRYUb1psGFjWKaf58wMHHgOqG5pFavRVTjJe4jkORhFZlaKF1VKCF1gpLmf58PE6PRGynyye8Wgnnt3pVf99+vuF66YdoVNBt0SJyDkBtCkEKyiG+Gv7h331FJj8XJasfQlbpQtSlux8/lRd0lwarAg7MVDl+pjK1vinvsnge0dY+uhCZBRlO6iHUzprOggbZE9Dosluvvm0dkvo93d9LVFB5JDEeERKniIuiWXo/PR69nPLxQSp3eMzoDVGnhRYjzQi6ZhozDIq7J3l2Pym+fiRpbikWU2bAxecYgk3ElVN6BVnVZTbO0YhLSGxPvSX+w+yy7c4pVOPI8qh400e+G0xGqqRFVJ0auDHTcOHB5F08/PhF4isK/qUktFeMTxbmfstzf6w1SBpK9EfR1q152MHpWC/E1DrkpKG3kVx7CFK/BQg9yRgIYMuOmOfYcsYUpG+I5dET+as9rQpZwALz5MeMa0nhz/qFpQi13/gd5BjOBO01sI5v3b3kZMADc=
+        on:
+          tags: true
+          repo: catdad/watchboy
