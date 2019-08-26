@@ -1,6 +1,6 @@
 {
   "name": "watchboy",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "watchboy",
   "main": "index.js",
   "scripts": {
@@ -10,7 +10,17 @@
     "type": "git",
     "url": "git+https://github.com/catdad/watchboy.git"
   },
-  "keywords": [],
+  "keywords": [
+    "fs",
+    "watch",
+    "file",
+    "watcher",
+    "watching",
+    "glob",
+    "globbing",
+    "pattern",
+    "wildcard"
+  ],
   "author": "Kiril Vatev <vatev.1@gmail.com>",
   "license": "ISC",
   "bugs": {
@@ -31,8 +41,7 @@
     "fs-extra": "^8.1.0",
     "mocha": "^6.2.0",
     "nyc": "^14.1.1",
-    "rootrequire": "^1.0.0",
-    "touch": "^3.1.0"
+    "rootrequire": "^1.0.0"
   },
   "engines": {
     "node": ">=8.0.0"
