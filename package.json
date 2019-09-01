@@ -31,6 +31,7 @@
     "dir-glob": "^3.0.1",
     "lodash.difference": "^4.5.0",
     "micromatch": "^4.0.2",
+    "p-limit": "^2.2.1",
     "pify": "^4.0.1",
     "unixify": "^1.0.0"
   },

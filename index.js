@@ -6,6 +6,7 @@ const unixify = require('unixify');
 const dirGlob = require('dir-glob');
 const micromatch = require('micromatch');
 const pify = require('pify');
+const limit = require('p-limit');
 
 const EV_DISCOVER = '_wb_discover';
 const STATE = {
@@ -284,9 +285,9 @@ module.exports = (pattern, {
 
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
 
-      for (let dir of diff(foundDirs, existingDirs)) {
-        await watchDir(dir);
-      }
+      const queue = limit(4);
+
+      await Promise.all(diff(foundDirs, existingDirs).map((dir) => queue(watchDir, dir)));
     } catch (err) {
       try {
         if (await exists(abspath)) {
