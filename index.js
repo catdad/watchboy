@@ -41,9 +41,12 @@ const readdir = async (dir) => {
     const list = await pReaddir(dir);
     result = [];
 
-    for (let name of list) {
-      result.push(Object.assign(await pStat(`${dir}${name}`), { name }));
-    }
+    const queue = limit(4);
+
+    await Promise.all(list.map(name => async () => {
+      const stats = await queue(pStat, `${dir}${name}`);
+      result.push(Object.assign(stats, { name }));
+    }));
   }
 
   return result.map(dirent => {
