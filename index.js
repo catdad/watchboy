@@ -90,13 +90,12 @@ const globdir = async (dir, patterns) => {
   // directly after a change even when there are entries, so we need
   // to confirm that two runs read the same amount of entries
   const one = await run();
-  const two = await run();
 
-  if (one.length === two.length) {
-    return two;
+  if (one.length) {
+    return one;
   }
 
-  return globdir(dir, patterns);
+  return await run();
 };
 
 const exists = (abspath) => {
