@@ -39,6 +39,7 @@
     "chokidar": "^3.0.2",
     "eslint": "^5.16.0",
     "fs-extra": "^8.1.0",
+    "hitime": "^0.3.0",
     "mocha": "^6.2.0",
     "rootrequire": "^1.0.0"
   },
