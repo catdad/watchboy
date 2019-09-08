@@ -159,7 +159,7 @@ module.exports = (pattern, {
   let absolutePatterns;
 
   const events = new EventEmitter();
-  const dirs = {};
+  const dirs = new Map();
   const files = new Map();
   const pending = {};
   let state = STATE.STARTING;
@@ -245,11 +245,11 @@ module.exports = (pattern, {
   };
 
   const removeDir = (abspath) => {
-    const watcher = dirs[abspath];
+    const watcher = dirs.get(abspath);
 
     if (watcher) {
       watcher.close();
-      delete dirs[abspath];
+      dirs.delete(abspath);
       throttle(abspath, 'unlinkDir', { path: path.resolve(abspath) });
     }
   };
@@ -315,8 +315,12 @@ module.exports = (pattern, {
       const four = hitime();
 
       // now do the same thing for directories
-      const existingDirs = Object.keys(dirs)
-        .filter(dir => path.posix.dirname(dir) === abspath);
+      const existingDirs = [];
+      dirs.forEach((value, dir) => {
+        if (value.parent === abspath) {
+          existingDirs.push(dir);
+        }
+      });
       const five = hitime();
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
       const d = hitime();
@@ -340,7 +344,7 @@ module.exports = (pattern, {
           error(err, abspath);
         }
       } catch (e) {
-        if (dirs[abspath]) {
+        if (dirs.has(abspath)) {
           error(err, abspath);
         }
       }
@@ -348,14 +352,16 @@ module.exports = (pattern, {
   };
 
   const watchDir = (abspath) => {
-    if (dirs[abspath]) {
+    if (dirs.has(abspath)) {
       return;
     }
 
     const a = hitime();
-    dirs[abspath] = fs.watch(abspath, { persistent }, onDirChange(abspath));
+    const watcher = fs.watch(abspath, { persistent }, onDirChange(abspath));
+    watcher.parent = path.posix.dirname(abspath);
+    dirs.set(abspath, watcher);
     watchTime += hitime() - a;
-    dirs[abspath].on('error', (/* err */) => {
+    watcher.on('error', (/* err */) => {
       // TODO an EPERM error is fired when the directory is deleted
     });
 
@@ -402,10 +408,7 @@ module.exports = (pattern, {
     state = STATE.CLOSED;
 
     files.forEach((val, file) => removeFile(file));
-
-    for (let dir in dirs) {
-      removeDir(dir);
-    }
+    dirs.forEach((val, dir) => removeDir(dir));
   };
 
   return events;
