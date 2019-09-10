@@ -6,21 +6,6 @@ const unixify = require('unixify');
 const dirGlob = require('dir-glob');
 const micromatch = require('micromatch');
 const pify = require('pify');
-const hitime = require('hitime');
-
-let watchTime = 0;
-let readdirTime = 0;
-let matchTime = 0;
-let globdirTime = 0;
-let globparseTime = 0;
-let globdiffTime = 0;
-
-let diffOne = 0;
-let diffOneA = 0;
-let diffTwo = 0;
-let diffThree = 0;
-let diffFour = 0;
-let diffFive = 0;
 
 const EV_DISCOVER = '_wb_discover';
 const STATE = {
@@ -62,11 +47,6 @@ const readdir = async (dir) => {
 
   return result.map(dirent => {
     return dirent.isDirectory() ? `${dir}${dirent.name}/` : `${dir}${dirent.name}`;
-    //    const value = dirent.isDirectory() ? `${dir}${dirent.name}/` : `${dir}${dirent.name}`;
-    //    value.name = dirent.name;
-    //    value.parent = dir;
-    //
-    //    return value;
   });
 };
 
@@ -92,14 +72,8 @@ const isParent = (input, patterns) => {
 
 const globdir = async (dir, patterns) => {
   const run = async () => {
-    const a = hitime();
     const entries = await readdir(dir);
-    const b = hitime();
     const matches = entries.filter((e) => isMatch(e, patterns) || isParent(e, patterns));
-    const c = hitime();
-
-    readdirTime += b - a;
-    matchTime += c - b;
 
     return matches;
   };
@@ -280,9 +254,7 @@ module.exports = (pattern, {
     }
 
     try {
-      const a = hitime();
       const paths = await globdir(abspath, absolutePatterns);
-      const b = hitime();
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
           dirs.push(file.slice(0, -1));
@@ -292,9 +264,8 @@ module.exports = (pattern, {
 
         return [files, dirs];
       }, [[], []]);
-      const c = hitime();
 
-      const one = hitime();
+      // find only files that exist in this directory
       const existingFiles = [];
 
       files.forEach((parent, file) => {
@@ -302,17 +273,9 @@ module.exports = (pattern, {
           existingFiles.push(file);
         }
       });
-      // find only files that exist in this directory
-//      const existingFilesKeys = Object.keys(files);
-//      const oneA = hitime();
-//      const existingFiles = existingFilesKeys.filter(file => files[file] === abspath);
-//      const existingFiles = existingFilesKeys.filter(file => path.posix.dirname(file) === abspath);
-      const two = hitime();
       // diff returns items in the first array that are not in the second
       diff(existingFiles, foundFiles).forEach(file => removeFile(file));
-      const three = hitime();
       diff(foundFiles, existingFiles).forEach(file => addFile(file));
-      const four = hitime();
 
       // now do the same thing for directories
       const existingDirs = [];
@@ -321,19 +284,7 @@ module.exports = (pattern, {
           existingDirs.push(dir);
         }
       });
-      const five = hitime();
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
-      const d = hitime();
-
-      diffOne += two - one;
-      diffTwo += three - two;
-      diffThree += four - three;
-      diffFour += five - four;
-      diffFive += d - five;
-
-      globdirTime += b - a;
-      globparseTime += c - b;
-      globdiffTime += d - c;
 
       for (let dir of diff(foundDirs, existingDirs)) {
         await watchDir(dir);
@@ -356,11 +307,9 @@ module.exports = (pattern, {
       return;
     }
 
-    const a = hitime();
     const watcher = fs.watch(abspath, { persistent }, onDirChange(abspath));
     watcher.parent = path.posix.dirname(abspath);
     dirs.set(abspath, watcher);
-    watchTime += hitime() - a;
     watcher.on('error', (/* err */) => {
       // TODO an EPERM error is fired when the directory is deleted
     });
@@ -386,20 +335,6 @@ module.exports = (pattern, {
   }).then(() => {
     state = STATE.READY;
     events.emit('ready');
-
-//    console.log('total sync watch time', Math.round(watchTime), '~4.3s');
-//    console.log('> total readdir time', Math.round(readdirTime), '~1.4s');
-//    console.log('> total match time', Math.round(matchTime), '~0.5s');
-//    console.log('total globdir time', Math.round(globdirTime), '~1.9s');
-//    console.log('total globparse time', Math.round(globparseTime), '~0.03s');
-//    console.log('total globdiff time', Math.round(globdiffTime), '~26s');
-//
-//    console.log('diff 1', Math.round(diffOne), '~17s');
-//    console.log('diff 1a', Math.round(diffOneA), '~17s');
-//    console.log('diff 2', Math.round(diffTwo));
-//    console.log('diff 3', Math.round(diffThree));
-//    console.log('diff 4', Math.round(diffFour), '~9s');
-//    console.log('diff 5', Math.round(diffFive));
   }).catch(err => {
     events.emit('error', err);
   });
