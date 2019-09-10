@@ -46,11 +46,7 @@ const readdir = async (dir) => {
   }
 
   return result.map(dirent => {
-    if (dirent.isDirectory()) {
-      return `${dir}${dirent.name}/`;
-    } else {
-      return `${dir}${dirent.name}`;
-    }
+    return dirent.isDirectory() ? `${dir}${dirent.name}/` : `${dir}${dirent.name}`;
   });
 };
 
@@ -137,8 +133,8 @@ module.exports = (pattern, {
   let absolutePatterns;
 
   const events = new EventEmitter();
-  const dirs = {};
-  const files = {};
+  const dirs = new Map();
+  const files = new Map();
   const pending = {};
   let state = STATE.STARTING;
 
@@ -216,30 +212,28 @@ module.exports = (pattern, {
   };
 
   const removeFile = (abspath) => {
-    const watcher = files[abspath];
-
-    if (watcher) {
-      delete files[abspath];
+    if (files.has(abspath)) {
+      files.delete(abspath);
       throttle(abspath, 'unlink', { path: path.resolve(abspath) });
     }
   };
 
   const removeDir = (abspath) => {
-    const watcher = dirs[abspath];
+    const watcher = dirs.get(abspath);
 
     if (watcher) {
       watcher.close();
-      delete dirs[abspath];
+      dirs.delete(abspath);
       throttle(abspath, 'unlinkDir', { path: path.resolve(abspath) });
     }
   };
 
   const addFile = (abspath) => {
-    if (files[abspath]) {
+    if (files.has(abspath)) {
       return;
     }
 
-    files[abspath] = 1;
+    files.set(abspath, path.posix.dirname(abspath));
 
     events.emit('add', { path: path.resolve(abspath) });
   };
@@ -254,7 +248,7 @@ module.exports = (pattern, {
     const changepath = `${abspath}/${name}`;
 
     // this is a file change inside the directory
-    if (type !== EV_DISCOVER && files[changepath]) {
+    if (type !== EV_DISCOVER && files.has(changepath)) {
       throttle(changepath, 'change', { path: path.resolve(changepath) });
       return;
     }
@@ -272,16 +266,24 @@ module.exports = (pattern, {
       }, [[], []]);
 
       // find only files that exist in this directory
-      const existingFiles = Object.keys(files)
-        .filter(file => path.posix.dirname(file) === abspath);
+      const existingFiles = [];
+
+      files.forEach((parent, file) => {
+        if (parent === abspath) {
+          existingFiles.push(file);
+        }
+      });
       // diff returns items in the first array that are not in the second
       diff(existingFiles, foundFiles).forEach(file => removeFile(file));
       diff(foundFiles, existingFiles).forEach(file => addFile(file));
 
       // now do the same thing for directories
-      const existingDirs = Object.keys(dirs)
-        .filter(dir => path.posix.dirname(dir) === abspath);
-
+      const existingDirs = [];
+      dirs.forEach((value, dir) => {
+        if (value.parent === abspath) {
+          existingDirs.push(dir);
+        }
+      });
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
 
       for (let dir of diff(foundDirs, existingDirs)) {
@@ -293,7 +295,7 @@ module.exports = (pattern, {
           error(err, abspath);
         }
       } catch (e) {
-        if (dirs[abspath]) {
+        if (dirs.has(abspath)) {
           error(err, abspath);
         }
       }
@@ -301,12 +303,14 @@ module.exports = (pattern, {
   };
 
   const watchDir = (abspath) => {
-    if (dirs[abspath]) {
+    if (dirs.has(abspath)) {
       return;
     }
 
-    dirs[abspath] = fs.watch(abspath, { persistent }, onDirChange(abspath));
-    dirs[abspath].on('error', (/* err */) => {
+    const watcher = fs.watch(abspath, { persistent }, onDirChange(abspath));
+    watcher.parent = path.posix.dirname(abspath);
+    dirs.set(abspath, watcher);
+    watcher.on('error', (/* err */) => {
       // TODO an EPERM error is fired when the directory is deleted
     });
 
@@ -338,13 +342,8 @@ module.exports = (pattern, {
   events.close = () => {
     state = STATE.CLOSED;
 
-    for (let file in files) {
-      removeFile(file);
-    }
-
-    for (let dir in dirs) {
-      removeDir(dir);
-    }
+    files.forEach((val, file) => removeFile(file));
+    dirs.forEach((val, dir) => removeDir(dir));
   };
 
   return events;
