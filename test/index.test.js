@@ -85,6 +85,46 @@ describe('watchboy', () => {
     ].sort());
   });
 
+  it('watches deep files', async () => {
+    await Promise.all([
+      file('a/b/c/d/e/seven.txt'),
+      file('a/b/c/d/e/f/eight.txt'),
+    ].map(f => fs.outputFile(f, '')));
+
+    const dirs = [], files = [];
+
+    await new Promise(r => {
+      watcher = watchboy('**/*', { cwd: temp, persistent: false })
+        .on('add', ({ path }) => files.push(path))
+        .on('addDir', ({ path }) => dirs.push(path))
+        .on('ready', () => r());
+    });
+
+    expect(dirs.sort()).to.deep.equal([
+      path.resolve(temp),
+      path.resolve(temp, 'bananas'),
+      path.resolve(temp, 'oranges'),
+      path.resolve(temp, 'pineapples'),
+      path.resolve(temp, 'a'),
+      path.resolve(temp, 'a/b'),
+      path.resolve(temp, 'a/b/c'),
+      path.resolve(temp, 'a/b/c/d'),
+      path.resolve(temp, 'a/b/c/d/e'),
+      path.resolve(temp, 'a/b/c/d/e/f'),
+    ].sort());
+
+    expect(files.sort()).to.deep.equal([
+      file('one.txt'),
+      file('bananas/two.txt'),
+      file('bananas/three.txt'),
+      file('oranges/four.txt'),
+      file('oranges/five.txt'),
+      file('pineapples/six.txt'),
+      file('a/b/c/d/e/seven.txt'),
+      file('a/b/c/d/e/f/eight.txt'),
+    ].sort());
+  });
+
   it('emits "change" when a file changes', async () => {
     const testFile = file('pineapples/six.txt');
 
