@@ -234,7 +234,6 @@ module.exports = (pattern, {
     }
 
     files.set(abspath, path.posix.dirname(abspath));
-
     events.emit('add', { path: path.resolve(abspath) });
   };
 
@@ -247,7 +246,7 @@ module.exports = (pattern, {
 
     const changepath = name ? `${abspath}/${unixify(name)}` : abspath;
 
-    // this is a file change inside the directory
+    // this is a change for a known file, let throttle handle it
     if (type !== EV_DISCOVER && files.has(changepath)) {
       throttle(changepath, 'change', { path: path.resolve(changepath) });
       return;
@@ -261,13 +260,18 @@ module.exports = (pattern, {
       return;
     }
 
-    // if this is not a directory event, we don't care
-    if (stats && !stats.isDirectory()) {
+    // this is a new directory being discovered, so add it and move on
+    if (stats && stats.isDirectory() && !dirs.has(changepath)) {
+      watchDir(changepath);
       return;
     }
 
+    // TODO what is stats is null?
+
+    const globpath = stats.isDirectory() ? changepath : path.posix.dirname(changepath);
+
     try {
-      const paths = await globdir(changepath, absolutePatterns);
+      const paths = await globdir(globpath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
           dirs.push(file.slice(0, -1));
@@ -282,7 +286,7 @@ module.exports = (pattern, {
       const existingFiles = [];
 
       files.forEach((parent, file) => {
-        if (parent === changepath) {
+        if (parent === globpath) {
           existingFiles.push(file);
         }
       });
@@ -293,7 +297,7 @@ module.exports = (pattern, {
       // now do the same thing for directories
       const existingDirs = [];
       dirs.forEach((value, dir) => {
-        if (value.parent === changepath) {
+        if (value.parent === globpath) {
           existingDirs.push(dir);
         }
       });
@@ -304,12 +308,12 @@ module.exports = (pattern, {
       }
     } catch (err) {
       try {
-        if (await exists(changepath)) {
-          error(err, changepath);
+        if (await exists(globpath)) {
+          error(err, globpath);
         }
       } catch (e) {
-        if (dirs.has(changepath)) {
-          error(err, changepath);
+        if (dirs.has(globpath)) {
+          error(err, globpath);
         }
       }
     }
