@@ -266,7 +266,12 @@ module.exports = (pattern, {
       return;
     }
 
-    // TODO what is stats is null?
+    if (!stats) {
+      // this can happen on Linux when a folder itself is changed
+      // that is okay, because in those cases, we have a parent watcher
+      // which will handle the change, so we can ignore it
+      return;
+    }
 
     const globpath = stats.isDirectory() ? changepath : path.posix.dirname(changepath);
 
