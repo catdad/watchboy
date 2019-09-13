@@ -245,7 +245,7 @@ module.exports = (pattern, {
       return;
     }
 
-    const changepath = `${abspath}/${name}`;
+    const changepath = name ? `${abspath}/${unixify(name)}` : abspath;
 
     // this is a file change inside the directory
     if (type !== EV_DISCOVER && files.has(changepath)) {
@@ -253,8 +253,21 @@ module.exports = (pattern, {
       return;
     }
 
+    const stats = await stat(changepath);
+
+    // this is a known directory that no longer exists, remove it
+    if (!stats && dirs.has(changepath)) {
+      removeDir(changepath);
+      return;
+    }
+
+    // if this is not a directory event, we don't care
+    if (stats && !stats.isDirectory()) {
+      return;
+    }
+
     try {
-      const paths = await globdir(abspath, absolutePatterns);
+      const paths = await globdir(changepath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
           dirs.push(file.slice(0, -1));
@@ -269,7 +282,7 @@ module.exports = (pattern, {
       const existingFiles = [];
 
       files.forEach((parent, file) => {
-        if (parent === abspath) {
+        if (parent === changepath) {
           existingFiles.push(file);
         }
       });
@@ -280,7 +293,7 @@ module.exports = (pattern, {
       // now do the same thing for directories
       const existingDirs = [];
       dirs.forEach((value, dir) => {
-        if (value.parent === abspath) {
+        if (value.parent === changepath) {
           existingDirs.push(dir);
         }
       });
@@ -291,32 +304,44 @@ module.exports = (pattern, {
       }
     } catch (err) {
       try {
-        if (await exists(abspath)) {
-          error(err, abspath);
+        if (await exists(changepath)) {
+          error(err, changepath);
         }
       } catch (e) {
-        if (dirs.has(abspath)) {
-          error(err, abspath);
+        if (dirs.has(changepath)) {
+          error(err, changepath);
         }
       }
     }
   };
 
-  const watchDir = (abspath) => {
+  const watchDir = (abspath, { isRoot = false } = {}) => {
     if (dirs.has(abspath)) {
       return;
     }
 
-    const watcher = fs.watch(abspath, { persistent }, onDirChange(abspath));
-    watcher.parent = path.posix.dirname(abspath);
-    dirs.set(abspath, watcher);
-    watcher.on('error', (/* err */) => {
-      // TODO an EPERM error is fired when the directory is deleted
-    });
+    const recursive = ['win32', 'darwin'].includes(process.platform);
+    const onChange = onDirChange(abspath, recursive);
+
+    if (recursive === true && isRoot === false) {
+      dirs.set(abspath, {
+        close: () => {},
+        parent: path.posix.dirname(abspath),
+        placeholder: true
+      });
+    } else {
+      const watcher = fs.watch(abspath, { persistent, recursive }, onChange);
+      watcher.parent = path.posix.dirname(abspath);
+      watcher.on('error', (/* err */) => {
+        // TODO an EPERM error is fired when the directory is deleted
+      });
+
+      dirs.set(abspath, watcher);
+    }
 
     // check to see if we already have files in there that were
     // added during the initial glob
-    return onDirChange(abspath)(EV_DISCOVER).then(() => {
+    return onChange(EV_DISCOVER).then(() => {
       events.emit('addDir', { path: path.resolve(abspath) });
     });
   };
@@ -325,7 +350,7 @@ module.exports = (pattern, {
     absolutePatterns = p;
   }).then(() => {
     const dir = addDriveLetter(cwd, unixify(cwd));
-    return watchDir(dir);
+    return watchDir(dir, { isRoot: true });
   }).then(() => {
     // this is the most annoying part, but it seems that watching does not
     // occur immediately, yet there is no event for whenan fs watcher is
