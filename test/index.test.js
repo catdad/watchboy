@@ -40,6 +40,13 @@ describe('watchboy', () => {
   const file = relpath => path.resolve(temp, relpath);
   let watcher;
 
+  const take = async (emitter, name, count) => {
+    return [
+      await new Promise(r => emitter.once(name, a => r(a))),
+      ...(count > 1 ? (await take(emitter, name, count - 1)) : [])
+    ];
+  };
+
   beforeEach(async () => {
     await fs.remove(temp);
     await Promise.all([
@@ -217,18 +224,19 @@ describe('watchboy', () => {
       watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
     });
 
-    const [addedFile, addedDir] = await Promise.all([
+    const [addedFile, addedDirs] = await Promise.all([
       new Promise(r => {
         watcher.once('add', ({ path }) => r(path));
       }),
-      new Promise(r => {
-        watcher.once('addDir', ({ path }) => r(path));
-      }),
+      take(watcher, 'addDir', 2).then(r => r.map(({ path }) => path)),
       fs.outputFile(testFile, '')
     ]);
 
     expect(addedFile).to.equal(testFile);
-    expect(addedDir).to.equal(path.dirname(testFile));
+    expect(addedDirs.sort()).to.deep.equal([
+      path.dirname(path.dirname(testFile)),
+      path.dirname(testFile),
+    ]);
 
     const [changedFile] = await Promise.all([
       new Promise(r => {
