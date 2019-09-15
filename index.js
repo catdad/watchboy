@@ -70,10 +70,14 @@ const isParent = (input, patterns) => {
   return false;
 };
 
+const shouldWatch = (input, patterns) => {
+  return isMatch(input, patterns) || isParent(input, patterns);
+};
+
 const globdir = async (dir, patterns) => {
   const run = async () => {
     const entries = await readdir(dir);
-    const matches = entries.filter((e) => isMatch(e, patterns) || isParent(e, patterns));
+    const matches = entries.filter((e) => shouldWatch(e, patterns));
 
     return matches;
   };
@@ -107,11 +111,6 @@ const evMap = {
   unlinkDir: 5
 };
 
-const addDriveLetter = (basePath, str) => {
-  const drive = (basePath.match(/^([a-z]:)\\/i) || [])[1];
-  return drive ? `${drive}${str}` : str;
-};
-
 module.exports = (pattern, {
   cwd = process.cwd(),
   persistent = true
@@ -119,24 +118,19 @@ module.exports = (pattern, {
   // support passing relative paths and '.'
   cwd = path.resolve(cwd);
 
-  const resolvedPatterns = (Array.isArray(pattern) ? pattern : [pattern]).map(str => {
-    const negative = str[0] === '!';
-
-    if (negative) {
-      str = str.slice(1);
-    }
-
-    const absPattern = addDriveLetter(cwd, path.posix.resolve(unixify(cwd), str));
-
-    return negative ? `!${absPattern}` : absPattern;
-  });
-  let absolutePatterns;
+  const unixifyAbs = str => {
+    const relDrive = (str.match(/^([a-z]:)\\/i) || [])[1];
+    const drive = relDrive || (cwd.match(/^([a-z]:)\\/i) || [])[1];
+    const unix = unixify(path.resolve(cwd, str));
+    return drive ? `${drive}${unix}` : unix;
+  };
 
   const events = new EventEmitter();
   const dirs = new Map();
   const files = new Map();
   const pending = {};
   let state = STATE.STARTING;
+  let absolutePatterns;
 
   const throttle = (abspath, evname, evarg) => {
     if (state === STATE.CLOSED) {
@@ -329,6 +323,10 @@ module.exports = (pattern, {
       return;
     }
 
+    if (!shouldWatch(abspath, absolutePatterns)) {
+      return;
+    }
+
     const recursive = ['win32', 'darwin'].includes(process.platform);
     const onChange = onDirChange(abspath, recursive);
 
@@ -355,10 +353,24 @@ module.exports = (pattern, {
     });
   };
 
-  dirGlob(resolvedPatterns, { cwd }).then((p) => {
-    absolutePatterns = p;
+  Promise.resolve().then(async () => {
+    const patterns = Array.isArray(pattern) ? pattern : [pattern];
+    absolutePatterns = [];
+
+    for (let str of patterns) {
+      const negative = str[0] === '!';
+
+      if (negative) {
+        str = str.slice(1);
+      }
+
+      // let [ result ] = await dirGlob(str, { cwd });
+      let result = unixifyAbs(path.resolve(cwd, str));
+
+      absolutePatterns.push(negative ? `!${result}` : result);
+    }
   }).then(() => {
-    const dir = addDriveLetter(cwd, unixify(cwd));
+    const dir = unixifyAbs(cwd);
     return watchDir(dir, { isRoot: true });
   }).then(() => {
     // this is the most annoying part, but it seems that watching does not
