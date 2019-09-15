@@ -246,6 +246,70 @@ describe('watchboy', () => {
     expect(nestedFile).to.equal(actualNestedFile);
   });
 
+  describe('ignores', () => {
+    it('does not add files matching a negative pattern', async () => {
+      await Promise.all([
+        file('pineapples/seven.log'),
+        file('oranges/eight.log'),
+      ].map(f => fs.outputFile(f, '')));
+
+      const dirs = [], files = [];
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!**/*.log'], { cwd: temp, persistent: false })
+          .on('add', ({ path }) => files.push(path))
+          .on('addDir', ({ path }) => dirs.push(path))
+          .on('ready', () => r());
+      });
+
+      expect(dirs.sort()).to.deep.equal([
+        path.resolve(temp),
+        path.resolve(temp, 'bananas'),
+        path.resolve(temp, 'oranges'),
+        path.resolve(temp, 'pineapples'),
+      ].sort());
+
+      expect(files.sort()).to.deep.equal([
+        file('one.txt'),
+        file('bananas/two.txt'),
+        file('bananas/three.txt'),
+        file('oranges/four.txt'),
+        file('oranges/five.txt'),
+        file('pineapples/six.txt'),
+      ].sort());
+    });
+
+    it('does not add directories and files in them matching a negative pattern', async () => {
+      const dirs = [], files = [];
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!bananas'], { cwd: temp, persistent: false })
+          .on('add', ({ path }) => files.push(path))
+          .on('addDir', ({ path }) => dirs.push(path))
+          .on('ready', () => r());
+      });
+
+      expect(dirs.sort()).to.deep.equal([
+        path.resolve(temp),
+        path.resolve(temp, 'oranges'),
+        path.resolve(temp, 'pineapples'),
+      ].sort());
+
+      expect(files.sort()).to.deep.equal([
+        file('one.txt'),
+        file('oranges/four.txt'),
+        file('oranges/five.txt'),
+        file('pineapples/six.txt'),
+      ].sort());
+    });
+
+    it('does not trigger change events for files matching a negative pattern');
+
+    it('does not trigger events for directories matching a negative pattern');
+
+    it('does not trigger events for files inside directories matching a negative pattern');
+  });
+
   describe('close', () => {
     it('stops all listeners');
   });
