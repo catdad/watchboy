@@ -3,7 +3,6 @@ const EventEmitter = require('events');
 const fs = require('fs');
 const diff = require('lodash.difference');
 const unixify = require('unixify');
-const dirGlob = require('dir-glob');
 const micromatch = require('micromatch');
 const pify = require('pify');
 
@@ -364,7 +363,6 @@ module.exports = (pattern, {
         str = str.slice(1);
       }
 
-      // let [ result ] = await dirGlob(str, { cwd });
       let result = unixifyAbs(path.resolve(cwd, str));
 
       absolutePatterns.push(negative ? `!${result}` : result);
