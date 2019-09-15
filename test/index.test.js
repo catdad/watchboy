@@ -303,11 +303,86 @@ describe('watchboy', () => {
       ].sort());
     });
 
-    it('does not trigger change events for files matching a negative pattern');
+    it('does not trigger change events for files matching a negative pattern', async () => {
+      const negativeFile = file('oranges/seven.log');
+      const positiveFile = file('oranges/eight.txt');
+      await Promise.all([
+        negativeFile,
+        positiveFile,
+      ].map(f => fs.outputFile(f, '')));
 
-    it('does not trigger events for directories matching a negative pattern');
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!**/*.log'], { cwd: temp }).on('ready', () => r());
+      });
 
-    it('does not trigger events for files inside directories matching a negative pattern');
+      const [changedFile] = await Promise.all([
+        new Promise(r => {
+          watcher.once('change', ({ path }) => r(path));
+        }),
+        touch(negativeFile),
+        new Promise(r => {
+          setTimeout(() => touch(positiveFile).then(r), 20);
+        })
+      ]);
+
+      expect(changedFile).to.equal(positiveFile);
+    });
+
+    it('does not trigger events for directories matching a negative pattern', async () => {
+      const negativeDir = file('kiwis');
+      const positiveDir = file('limes');
+      await Promise.all([
+        negativeDir,
+        positiveDir,
+      ].map(f => fs.ensureDir(f)));
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!kiwis'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [unlinkedDir] = await Promise.all([
+        new Promise(r => {
+          watcher.once('unlinkDir', ({ path }) => r(path));
+        }),
+        fs.remove(negativeDir),
+        new Promise(r => {
+          setTimeout(() => fs.remove(positiveDir).then(r), 20);
+        })
+      ]);
+
+      expect(unlinkedDir).to.equal(positiveDir);
+    });
+
+    it('does not trigger events for files inside directories matching a negative pattern', async () => {
+      const negativeFile = file('kiwis/seven.txt');
+      const negativeDir = path.dirname(negativeFile);
+      const positiveFile = file('limes/eight.txt');
+      const positiveDir = path.dirname(positiveFile);
+      await Promise.all([
+        negativeFile,
+        positiveFile,
+      ].map(f => fs.outputFile(f, '')));
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!kiwis'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [unlinkedFile, unlinkedDir] = await Promise.all([
+        new Promise(r => {
+          watcher.once('unlink', ({ path }) => r(path));
+        }),
+        new Promise(r => {
+          watcher.once('unlinkDir', ({ path }) => r(path));
+        }),
+        fs.remove(negativeDir),
+        new Promise(r => {
+          setTimeout(() => fs.remove(positiveDir).then(r), 20);
+        })
+      ]);
+
+      expect(unlinkedFile).to.equal(positiveFile);
+      expect(unlinkedDir).to.equal(positiveDir);
+    });
   });
 
   describe('close', () => {
