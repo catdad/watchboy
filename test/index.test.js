@@ -295,6 +295,14 @@ describe('watchboy', () => {
   });
 
   describe('ignores', () => {
+    const delay = func => {
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          func().then(resolve).catch(reject);
+        }, 20);
+      });
+    };
+
     it('does not add files matching a negative pattern', async () => {
       await Promise.all([
         file('pineapples/seven.log'),
@@ -368,9 +376,7 @@ describe('watchboy', () => {
           watcher.once('change', ({ path }) => r(path));
         }),
         touch(negativeFile),
-        new Promise(r => {
-          setTimeout(() => touch(positiveFile).then(r), 20);
-        })
+        delay(() => touch(positiveFile))
       ]);
 
       expect(changedFile).to.equal(positiveFile);
@@ -393,9 +399,7 @@ describe('watchboy', () => {
           watcher.once('unlinkDir', ({ path }) => r(path));
         }),
         fs.remove(negativeDir),
-        new Promise(r => {
-          setTimeout(() => fs.remove(positiveDir).then(r), 20);
-        })
+        delay(() => fs.remove(positiveDir))
       ]);
 
       expect(unlinkedDir).to.equal(positiveDir);
@@ -423,9 +427,7 @@ describe('watchboy', () => {
           watcher.once('unlinkDir', ({ path }) => r(path));
         }),
         fs.remove(negativeDir),
-        new Promise(r => {
-          setTimeout(() => fs.remove(positiveDir).then(r), 20);
-        })
+        delay(() => fs.remove(positiveDir))
       ]);
 
       expect(unlinkedFile).to.equal(positiveFile);
@@ -445,9 +447,7 @@ describe('watchboy', () => {
           watcher.once('add', ({ path }) => r(path));
         }),
         fs.outputFile(negativeFile, ''),
-        new Promise(r => {
-          setTimeout(() => fs.outputFile(positiveFile, '').then(r), 20);
-        })
+        delay(() => fs.outputFile(positiveFile, ''))
       ]);
 
       expect(addedFile).to.equal(positiveFile);
@@ -467,9 +467,7 @@ describe('watchboy', () => {
           watcher.once('add', ({ path }) => r(path));
         }),
         fs.outputFile(negativeFile, ''),
-        new Promise(r => {
-          setTimeout(() => fs.outputFile(positiveFile, '').then(r), 20);
-        })
+        delay(() => fs.outputFile(positiveFile, ''))
       ]);
 
       expect(addedFile).to.equal(positiveFile);
