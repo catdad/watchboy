@@ -383,6 +383,49 @@ describe('watchboy', () => {
       expect(unlinkedFile).to.equal(positiveFile);
       expect(unlinkedDir).to.equal(positiveDir);
     });
+
+    it('does not triger add for a new file matcing a nefative pattern', async () => {
+      const negativeFile = file('oranges/seven.log');
+      const positiveFile = file('oranges/eight.txt');
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!**/*.log'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [addedFile] = await Promise.all([
+        new Promise(r => {
+          watcher.once('add', ({ path }) => r(path));
+        }),
+        fs.outputFile(negativeFile, ''),
+        new Promise(r => {
+          setTimeout(() => fs.outputFile(positiveFile, '').then(r), 20);
+        })
+      ]);
+
+      expect(addedFile).to.equal(positiveFile);
+    });
+
+    // TODO: this test does not work yet
+    it.skip('does not trigger add for a new file in a directory matching a negative pattern', async () => {
+      const negativeFile = file('kiwis/seven.txt');
+      const positiveFile = file('limes/eight.txt');
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!kiwis'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [addedFile] = await Promise.all([
+        new Promise(r => {
+          watcher.once('add', ({ path }) => r(path));
+        }),
+        fs.outputFile(negativeFile, ''),
+        new Promise(r => {
+          setTimeout(() => fs.outputFile(positiveFile, '').then(r), 20);
+        })
+      ]);
+
+      expect(addedFile).to.equal(positiveFile);
+    });
   });
 
   describe('close', () => {
