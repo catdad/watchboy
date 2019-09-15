@@ -246,6 +246,188 @@ describe('watchboy', () => {
     expect(nestedFile).to.equal(actualNestedFile);
   });
 
+  describe('ignores', () => {
+    it('does not add files matching a negative pattern', async () => {
+      await Promise.all([
+        file('pineapples/seven.log'),
+        file('oranges/eight.log'),
+      ].map(f => fs.outputFile(f, '')));
+
+      const dirs = [], files = [];
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!**/*.log'], { cwd: temp, persistent: false })
+          .on('add', ({ path }) => files.push(path))
+          .on('addDir', ({ path }) => dirs.push(path))
+          .on('ready', () => r());
+      });
+
+      expect(dirs.sort()).to.deep.equal([
+        path.resolve(temp),
+        path.resolve(temp, 'bananas'),
+        path.resolve(temp, 'oranges'),
+        path.resolve(temp, 'pineapples'),
+      ].sort());
+
+      expect(files.sort()).to.deep.equal([
+        file('one.txt'),
+        file('bananas/two.txt'),
+        file('bananas/three.txt'),
+        file('oranges/four.txt'),
+        file('oranges/five.txt'),
+        file('pineapples/six.txt'),
+      ].sort());
+    });
+
+    it('does not add directories and files in them matching a negative pattern', async () => {
+      const dirs = [], files = [];
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!bananas'], { cwd: temp, persistent: false })
+          .on('add', ({ path }) => files.push(path))
+          .on('addDir', ({ path }) => dirs.push(path))
+          .on('ready', () => r());
+      });
+
+      expect(dirs.sort()).to.deep.equal([
+        path.resolve(temp),
+        path.resolve(temp, 'oranges'),
+        path.resolve(temp, 'pineapples'),
+      ].sort());
+
+      expect(files.sort()).to.deep.equal([
+        file('one.txt'),
+        file('oranges/four.txt'),
+        file('oranges/five.txt'),
+        file('pineapples/six.txt'),
+      ].sort());
+    });
+
+    it('does not trigger change events for files matching a negative pattern', async () => {
+      const negativeFile = file('oranges/seven.log');
+      const positiveFile = file('oranges/eight.txt');
+      await Promise.all([
+        negativeFile,
+        positiveFile,
+      ].map(f => fs.outputFile(f, '')));
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!**/*.log'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [changedFile] = await Promise.all([
+        new Promise(r => {
+          watcher.once('change', ({ path }) => r(path));
+        }),
+        touch(negativeFile),
+        new Promise(r => {
+          setTimeout(() => touch(positiveFile).then(r), 20);
+        })
+      ]);
+
+      expect(changedFile).to.equal(positiveFile);
+    });
+
+    it('does not trigger events for directories matching a negative pattern', async () => {
+      const negativeDir = file('kiwis');
+      const positiveDir = file('limes');
+      await Promise.all([
+        negativeDir,
+        positiveDir,
+      ].map(f => fs.ensureDir(f)));
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!kiwis'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [unlinkedDir] = await Promise.all([
+        new Promise(r => {
+          watcher.once('unlinkDir', ({ path }) => r(path));
+        }),
+        fs.remove(negativeDir),
+        new Promise(r => {
+          setTimeout(() => fs.remove(positiveDir).then(r), 20);
+        })
+      ]);
+
+      expect(unlinkedDir).to.equal(positiveDir);
+    });
+
+    it('does not trigger events for files inside directories matching a negative pattern', async () => {
+      const negativeFile = file('kiwis/seven.txt');
+      const negativeDir = path.dirname(negativeFile);
+      const positiveFile = file('limes/eight.txt');
+      const positiveDir = path.dirname(positiveFile);
+      await Promise.all([
+        negativeFile,
+        positiveFile,
+      ].map(f => fs.outputFile(f, '')));
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!kiwis'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [unlinkedFile, unlinkedDir] = await Promise.all([
+        new Promise(r => {
+          watcher.once('unlink', ({ path }) => r(path));
+        }),
+        new Promise(r => {
+          watcher.once('unlinkDir', ({ path }) => r(path));
+        }),
+        fs.remove(negativeDir),
+        new Promise(r => {
+          setTimeout(() => fs.remove(positiveDir).then(r), 20);
+        })
+      ]);
+
+      expect(unlinkedFile).to.equal(positiveFile);
+      expect(unlinkedDir).to.equal(positiveDir);
+    });
+
+    it('does not triger add for a new file matcing a nefative pattern', async () => {
+      const negativeFile = file('oranges/seven.log');
+      const positiveFile = file('oranges/eight.txt');
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!**/*.log'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [addedFile] = await Promise.all([
+        new Promise(r => {
+          watcher.once('add', ({ path }) => r(path));
+        }),
+        fs.outputFile(negativeFile, ''),
+        new Promise(r => {
+          setTimeout(() => fs.outputFile(positiveFile, '').then(r), 20);
+        })
+      ]);
+
+      expect(addedFile).to.equal(positiveFile);
+    });
+
+    // TODO: this test does not work yet
+    it.skip('does not trigger add for a new file in a directory matching a negative pattern', async () => {
+      const negativeFile = file('kiwis/seven.txt');
+      const positiveFile = file('limes/eight.txt');
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!kiwis'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [addedFile] = await Promise.all([
+        new Promise(r => {
+          watcher.once('add', ({ path }) => r(path));
+        }),
+        fs.outputFile(negativeFile, ''),
+        new Promise(r => {
+          setTimeout(() => fs.outputFile(positiveFile, '').then(r), 20);
+        })
+      ]);
+
+      expect(addedFile).to.equal(positiveFile);
+    });
+  });
+
   describe('close', () => {
     it('stops all listeners');
   });
