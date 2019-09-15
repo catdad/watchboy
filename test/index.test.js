@@ -454,12 +454,12 @@ describe('watchboy', () => {
     });
 
     // TODO: this test does not work yet
-    it.skip('does not trigger add for a new file in a directory matching a negative pattern', async () => {
+    it('does not trigger add for a new file in a directory matching a negative pattern', async () => {
       const negativeFile = file('kiwis/seven.txt');
       const positiveFile = file('limes/eight.txt');
 
       await new Promise(r => {
-        watcher = watchboy(['**/*', '!kiwis'], { cwd: temp }).on('ready', () => r());
+        watcher = watchboy(['**/*', '!kiwis/**'], { cwd: temp }).on('ready', () => r());
       });
 
       const [addedFile] = await Promise.all([
