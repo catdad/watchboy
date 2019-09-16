@@ -29,7 +29,7 @@ npm install watchboy
 const watchboy = require('watchboy');
 
 // watch all files in the current directory, except node modules and dotfiles
-const watcher = watchboy(['**/*', '!node_modules', '!.*']);
+const watcher = watchboy(['**/*', '!node_modules/**', '!.*']);
 
 watcher.on('add', ({ path }) => console.log('add:', path));
 watcher.on('addDir', ({ path }) => console.log('addDir:', path));
