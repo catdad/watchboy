@@ -44,7 +44,7 @@ jobs:
         provider: npm
         email: vatev.1+npm@gmail.com
         api_key:
-          secure: B2V/NDz1zASEicmKYdSfkoWIUymIem2tF4S3LApNnxi9AfCuwfQuFSYl/XCeNDKApvSvNVJ5vVSzir0daGIv9Ce4VfaKId3kVsyQJ3nEX1jUZcEsZYbhSmPQi5ODyOpCFSL9PCc9XsZ+ajjQVUp/V6gjBH/7cyEbTpdZ1VkomcDp8pRYUb1psGFjWKaf58wMHHgOqG5pFavRVTjJe4jkORhFZlaKF1VKCF1gpLmf58PE6PRGynyye8Wgnnt3pVf99+vuF66YdoVNBt0SJyDkBtCkEKyiG+Gv7h331FJj8XJasfQlbpQtSlux8/lRd0lwarAg7MVDl+pjK1vinvsnge0dY+uhCZBRlO6iHUzprOggbZE9Dosluvvm0dkvo93d9LVFB5JDEeERKniIuiWXo/PR69nPLxQSp3eMzoDVGnhRYjzQi6ZhozDIq7J3l2Pym+fiRpbikWU2bAxecYgk3ElVN6BVnVZTbO0YhLSGxPvSX+w+yy7c4pVOPI8qh400e+G0xGqqRFVJ0auDHTcOHB5F08/PhF4isK/qUktFeMTxbmfstzf6w1SBpK9EfR1q152MHpWC/E1DrkpKG3kVx7CFK/BQg9yRgIYMuOmOfYcsYUpG+I5dET+as9rQpZwALz5MeMa0nhz/qFpQi13/gd5BjOBO01sI5v3b3kZMADc=
+          secure: Pm80L0HQMrglNLOTd3cSw3PrWBHqt+iDdafob7Ky4eAARpW0G6CVn26C6VAYJ3Ta64xPBL7FcQk3g/sKMrUfWGhWAsv1hlAp42uJJQURvxbUHDzazBMK90SJenAqJILRBxd5JPL7vD1kpMB4bX5KYeqq6R2oM68271tfTr4+auz7kZx7WoyVzJ4+CwlwH9cfAH9fY2SpkafbryhP0nbN4CtD+jgMCUPmABuMj8Jk/VVNevjln2v3+72QysnKA3/gMR917a3Cck377+6DoDiohsBHrf0hnBL0Kj3hxc6auowQKs/tP+Fv/Xgqal78C0TFOXd9GZ0JQmsOwIQ0KGmW7cre8ggbHSuCvI79xNg+ihy7fipRZM+juLHOWkedKuUt0YEhlqZIg5Ikfl0d0tk01ELV5m4ltbByGtem8GcROAoz9o0dlHLgyXQQ6ovLGJSYGBJbQ2tNPiupU7RZqFp4IGTOT8jX8kga4iOUrehrNMVbyg3aFZWAQMXSXJMF/jvdT8lY5INh34GJt9SHyyqW07gBSu6Y9vG27Rsfnbbi9RANST9M0E03OTy3YWBKzRP+Q8WhhHvUDbg2XNj0462nvdCD2aoorowcQ1q/vgX18fsFdxx7+q1jmGJA/LKJJ1JZFlCPmJJEz77V46EdpKu8L+YWH6ZFdwD581z6+7qOHwU=
         on:
           tags: true
           repo: catdad/watchboy

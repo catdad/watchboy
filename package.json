@@ -1,6 +1,6 @@
 {
   "name": "watchboy",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "watchboy",
   "main": "index.js",
   "scripts": {
@@ -28,7 +28,6 @@
   },
   "homepage": "https://github.com/catdad/watchboy#readme",
   "dependencies": {
-    "dir-glob": "^3.0.1",
     "lodash.difference": "^4.5.0",
     "micromatch": "^4.0.2",
     "pify": "^4.0.1",
