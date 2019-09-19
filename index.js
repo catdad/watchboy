@@ -302,6 +302,7 @@ module.exports = (pattern, {
         await watchDir(dir);
       }
     } catch (err) {
+      // TODO I think this should use changepath or globpath
       try {
         if (await exists(globpath)) {
           error(err, globpath);
