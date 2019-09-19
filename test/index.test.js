@@ -434,7 +434,7 @@ describe('watchboy', () => {
       expect(unlinkedDir).to.equal(positiveDir);
     });
 
-    it('does not triger add for a new file matcing a negative pattern', async () => {
+    it('does not trigger add for a new file matcing a negative pattern', async () => {
       const negativeFile = file('oranges/seven.log');
       const positiveFile = file('oranges/eight.txt');
 
