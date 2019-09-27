@@ -255,14 +255,12 @@ module.exports = (pattern, {
 
     // this is a known directory that no longer exists, remove it
     if (!stats && dirs.has(changepath)) {
-      removeDir(changepath);
-      return;
+      return removeDir(changepath);
     }
 
     // this is a new directory being discovered, so add it and move on
     if (stats && stats.isDirectory() && !dirs.has(changepath)) {
-      watchDir(changepath);
-      return;
+      return watchDir(changepath);
     }
 
     if (!stats) {
@@ -311,6 +309,7 @@ module.exports = (pattern, {
         await watchDir(dir);
       }
     } catch (err) {
+      // TODO I think this should use changepath or globpath
       try {
         if (await exists(globpath)) {
           error(err, globpath);
