@@ -50,13 +50,20 @@ const readdir = async (dir) => {
 };
 
 const isMatch = (input, patterns) => {
-  let failed = false;
+  let result = false;
 
   for (let p of patterns) {
-    failed = failed || !micromatch.isMatch(input, p);
+    const isPositive = p[0] !== '!';
+    const isMatch = micromatch.isMatch(input, p);
+
+    if (isMatch && isPositive) {
+      result = true;
+    } else if (!isMatch && !isPositive) {
+      result = false;
+    }
   }
 
-  return !failed;
+  return result;
 };
 
 const isParent = (input, patterns) => {
