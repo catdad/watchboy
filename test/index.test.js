@@ -40,6 +40,13 @@ describe('watchboy', () => {
   const file = relpath => path.resolve(temp, relpath);
   let watcher;
 
+  const take = async (emitter, name, count) => {
+    return [
+      await new Promise(r => emitter.once(name, a => r(a))),
+      ...(count > 1 ? (await take(emitter, name, count - 1)) : [])
+    ];
+  };
+
   beforeEach(async () => {
     await fs.remove(temp);
     await Promise.all([
@@ -82,6 +89,46 @@ describe('watchboy', () => {
       file('oranges/four.txt'),
       file('oranges/five.txt'),
       file('pineapples/six.txt')
+    ].sort());
+  });
+
+  it('watches deep files', async () => {
+    await Promise.all([
+      file('a/b/c/d/e/seven.txt'),
+      file('a/b/c/d/e/f/eight.txt'),
+    ].map(f => fs.outputFile(f, '')));
+
+    const dirs = [], files = [];
+
+    await new Promise(r => {
+      watcher = watchboy('**/*', { cwd: temp, persistent: false })
+        .on('add', ({ path }) => files.push(path))
+        .on('addDir', ({ path }) => dirs.push(path))
+        .on('ready', () => r());
+    });
+
+    expect(dirs.sort()).to.deep.equal([
+      path.resolve(temp),
+      path.resolve(temp, 'bananas'),
+      path.resolve(temp, 'oranges'),
+      path.resolve(temp, 'pineapples'),
+      path.resolve(temp, 'a'),
+      path.resolve(temp, 'a/b'),
+      path.resolve(temp, 'a/b/c'),
+      path.resolve(temp, 'a/b/c/d'),
+      path.resolve(temp, 'a/b/c/d/e'),
+      path.resolve(temp, 'a/b/c/d/e/f'),
+    ].sort());
+
+    expect(files.sort()).to.deep.equal([
+      file('one.txt'),
+      file('bananas/two.txt'),
+      file('bananas/three.txt'),
+      file('oranges/four.txt'),
+      file('oranges/five.txt'),
+      file('pineapples/six.txt'),
+      file('a/b/c/d/e/seven.txt'),
+      file('a/b/c/d/e/f/eight.txt'),
     ].sort());
   });
 
@@ -177,18 +224,19 @@ describe('watchboy', () => {
       watcher = watchboy('**/*', { cwd: temp, persistent: false }).on('ready', () => r());
     });
 
-    const [addedFile, addedDir] = await Promise.all([
+    const [addedFile, addedDirs] = await Promise.all([
       new Promise(r => {
         watcher.once('add', ({ path }) => r(path));
       }),
-      new Promise(r => {
-        watcher.once('addDir', ({ path }) => r(path));
-      }),
+      take(watcher, 'addDir', 2).then(r => r.map(({ path }) => path)),
       fs.outputFile(testFile, '')
     ]);
 
     expect(addedFile).to.equal(testFile);
-    expect(addedDir).to.equal(path.dirname(testFile));
+    expect(addedDirs.sort()).to.deep.equal([
+      path.dirname(path.dirname(testFile)),
+      path.dirname(testFile),
+    ]);
 
     const [changedFile] = await Promise.all([
       new Promise(r => {
@@ -244,6 +292,220 @@ describe('watchboy', () => {
     ]);
 
     expect(nestedFile).to.equal(actualNestedFile);
+  });
+
+  describe('ignores', () => {
+    const delay = func => {
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          func().then(resolve).catch(reject);
+        }, 20);
+      });
+    };
+
+    it('does not add files matching a negative pattern', async () => {
+      await Promise.all([
+        file('pineapples/seven.log'),
+        file('oranges/eight.log'),
+      ].map(f => fs.outputFile(f, '')));
+
+      const dirs = [], files = [];
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!**/*.log'], { cwd: temp, persistent: false })
+          .on('add', ({ path }) => files.push(path))
+          .on('addDir', ({ path }) => dirs.push(path))
+          .on('ready', () => r());
+      });
+
+      expect(dirs.sort()).to.deep.equal([
+        path.resolve(temp),
+        path.resolve(temp, 'bananas'),
+        path.resolve(temp, 'oranges'),
+        path.resolve(temp, 'pineapples'),
+      ].sort());
+
+      expect(files.sort()).to.deep.equal([
+        file('one.txt'),
+        file('bananas/two.txt'),
+        file('bananas/three.txt'),
+        file('oranges/four.txt'),
+        file('oranges/five.txt'),
+        file('pineapples/six.txt'),
+      ].sort());
+    });
+
+    it('does not add directories and files in them matching a negative pattern', async () => {
+      const dirs = [], files = [];
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!bananas'], { cwd: temp, persistent: false })
+          .on('add', ({ path }) => files.push(path))
+          .on('addDir', ({ path }) => dirs.push(path))
+          .on('ready', () => r());
+      });
+
+      expect(dirs.sort()).to.deep.equal([
+        path.resolve(temp),
+        path.resolve(temp, 'oranges'),
+        path.resolve(temp, 'pineapples'),
+      ].sort());
+
+      expect(files.sort()).to.deep.equal([
+        file('one.txt'),
+        file('oranges/four.txt'),
+        file('oranges/five.txt'),
+        file('pineapples/six.txt'),
+      ].sort());
+    });
+
+    it('does not trigger change events for files matching a negative pattern', async () => {
+      const negativeFile = file('oranges/seven.log');
+      const positiveFile = file('oranges/eight.txt');
+      await Promise.all([
+        negativeFile,
+        positiveFile,
+      ].map(f => fs.outputFile(f, '')));
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!**/*.log'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [changedFile] = await Promise.all([
+        new Promise(r => {
+          watcher.once('change', ({ path }) => r(path));
+        }),
+        touch(negativeFile),
+        delay(() => touch(positiveFile))
+      ]);
+
+      expect(changedFile).to.equal(positiveFile);
+    });
+
+    it('does not trigger events for directories matching a negative pattern', async () => {
+      const negativeDir = file('kiwis');
+      const positiveDir = file('limes');
+      await Promise.all([
+        negativeDir,
+        positiveDir,
+      ].map(f => fs.ensureDir(f)));
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!kiwis'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [unlinkedDir] = await Promise.all([
+        new Promise(r => {
+          watcher.once('unlinkDir', ({ path }) => r(path));
+        }),
+        fs.remove(negativeDir),
+        delay(() => fs.remove(positiveDir))
+      ]);
+
+      expect(unlinkedDir).to.equal(positiveDir);
+    });
+
+    it('does not trigger events for files inside directories matching a negative pattern', async () => {
+      const negativeFile = file('kiwis/seven.txt');
+      const negativeDir = path.dirname(negativeFile);
+      const positiveFile = file('limes/eight.txt');
+      const positiveDir = path.dirname(positiveFile);
+      await Promise.all([
+        negativeFile,
+        positiveFile,
+      ].map(f => fs.outputFile(f, '')));
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!kiwis'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [unlinkedFile, unlinkedDir] = await Promise.all([
+        new Promise(r => {
+          watcher.once('unlink', ({ path }) => r(path));
+        }),
+        new Promise(r => {
+          watcher.once('unlinkDir', ({ path }) => r(path));
+        }),
+        fs.remove(negativeDir),
+        delay(() => fs.remove(positiveDir))
+      ]);
+
+      expect(unlinkedFile).to.equal(positiveFile);
+      expect(unlinkedDir).to.equal(positiveDir);
+    });
+
+    it('does not trigger add for a new file matcing a negative pattern', async () => {
+      const negativeFile = file('oranges/seven.log');
+      const positiveFile = file('oranges/eight.txt');
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!**/*.log'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [addedFile] = await Promise.all([
+        new Promise(r => {
+          watcher.once('add', ({ path }) => r(path));
+        }),
+        fs.outputFile(negativeFile, ''),
+        delay(() => fs.outputFile(positiveFile, ''))
+      ]);
+
+      expect(addedFile).to.equal(positiveFile);
+    });
+
+    // TODO: this test does not work yet
+    it('does not trigger add for a new file in a directory matching a negative pattern', async () => {
+      const negativeFile = file('kiwis/seven.txt');
+      const positiveFile = file('limes/eight.txt');
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!kiwis/**'], { cwd: temp }).on('ready', () => r());
+      });
+
+      const [addedFile] = await Promise.all([
+        new Promise(r => {
+          watcher.once('add', ({ path }) => r(path));
+        }),
+        fs.outputFile(negativeFile, ''),
+        delay(() => fs.outputFile(positiveFile, ''))
+      ]);
+
+      expect(addedFile).to.equal(positiveFile);
+    });
+
+    it('positive patters after an ignore add files back in', async () => {
+      await Promise.all([
+        file('bananas/sliced/seven.txt'),
+        file('bananas/sliced/eight.txt'),
+        file('bananas/mashed/nine.txt'),
+      ].map(f => fs.outputFile(f, '')));
+
+      const dirs = [], files = [];
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!bananas/**/*', 'bananas/sliced/**/*'], { cwd: temp, persistent: false })
+          .on('add', ({ path }) => files.push(path))
+          .on('addDir', ({ path }) => dirs.push(path))
+          .on('ready', () => r());
+      });
+
+      expect(dirs.sort()).to.deep.equal([
+        path.resolve(temp),
+        path.resolve(temp, 'bananas'),
+        path.resolve(temp, 'bananas/sliced'),
+        path.resolve(temp, 'oranges'),
+        path.resolve(temp, 'pineapples'),
+      ].sort());
+
+      expect(files.sort()).to.deep.equal([
+        file('one.txt'),
+        file('bananas/sliced/seven.txt'),
+        file('bananas/sliced/eight.txt'),
+        file('oranges/four.txt'),
+        file('oranges/five.txt'),
+        file('pineapples/six.txt'),
+      ].sort());
+    });
   });
 
   describe('close', () => {

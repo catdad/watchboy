@@ -3,7 +3,6 @@ const EventEmitter = require('events');
 const fs = require('fs');
 const diff = require('lodash.difference');
 const unixify = require('unixify');
-const dirGlob = require('dir-glob');
 const micromatch = require('micromatch');
 const pify = require('pify');
 const limit = require('p-limit');
@@ -50,22 +49,25 @@ const readdir = async (dir) => {
   }
 
   return result.map(dirent => {
-    if (dirent.isDirectory()) {
-      return `${dir}${dirent.name}/`;
-    } else {
-      return `${dir}${dirent.name}`;
-    }
+    return dirent.isDirectory() ? `${dir}${dirent.name}/` : `${dir}${dirent.name}`;
   });
 };
 
 const isMatch = (input, patterns) => {
-  let failed = false;
+  let result = false;
 
   for (let p of patterns) {
-    failed = failed || !micromatch.isMatch(input, p);
+    const isPositive = p[0] !== '!';
+    const isMatch = micromatch.isMatch(input, p);
+
+    if (isMatch && isPositive) {
+      result = true;
+    } else if (!isMatch && !isPositive) {
+      result = false;
+    }
   }
 
-  return !failed;
+  return result;
 };
 
 const isParent = (input, patterns) => {
@@ -78,10 +80,14 @@ const isParent = (input, patterns) => {
   return false;
 };
 
+const shouldWatch = (input, patterns) => {
+  return isMatch(input, patterns) || isParent(input, patterns);
+};
+
 const globdir = async (dir, patterns) => {
   const run = async () => {
     const entries = await readdir(dir);
-    const matches = entries.filter((e) => isMatch(e, patterns) || isParent(e, patterns));
+    const matches = entries.filter((e) => shouldWatch(e, patterns));
 
     return matches;
   };
@@ -94,13 +100,12 @@ const globdir = async (dir, patterns) => {
   // directly after a change even when there are entries, so we need
   // to confirm that two runs read the same amount of entries
   const one = await run();
-  const two = await run();
 
-  if (one.length === two.length) {
-    return two;
+  if (one.length) {
+    return one;
   }
 
-  return globdir(dir, patterns);
+  return await run();
 };
 
 const exists = (abspath) => {
@@ -115,11 +120,6 @@ const evMap = {
   unlinkDir: 5
 };
 
-const addDriveLetter = (basePath, str) => {
-  const drive = (basePath.match(/^([a-z]:)\\/i) || [])[1];
-  return drive ? `${drive}${str}` : str;
-};
-
 module.exports = (pattern, {
   cwd = process.cwd(),
   persistent = true
@@ -127,24 +127,19 @@ module.exports = (pattern, {
   // support passing relative paths and '.'
   cwd = path.resolve(cwd);
 
-  const resolvedPatterns = (Array.isArray(pattern) ? pattern : [pattern]).map(str => {
-    const negative = str[0] === '!';
-
-    if (negative) {
-      str = str.slice(1);
-    }
-
-    const absPattern = addDriveLetter(cwd, path.posix.resolve(unixify(cwd), str));
-
-    return negative ? `!${absPattern}` : absPattern;
-  });
-  let absolutePatterns;
+  const unixifyAbs = str => {
+    const relDrive = (str.match(/^([a-z]:)\\/i) || [])[1];
+    const drive = relDrive || (cwd.match(/^([a-z]:)\\/i) || [])[1];
+    const unix = unixify(path.resolve(cwd, str));
+    return drive ? `${drive}${unix}` : unix;
+  };
 
   const events = new EventEmitter();
-  const dirs = {};
-  const files = {};
+  const dirs = new Map();
+  const files = new Map();
   const pending = {};
   let state = STATE.STARTING;
+  let absolutePatterns;
 
   const throttle = (abspath, evname, evarg) => {
     if (state === STATE.CLOSED) {
@@ -220,31 +215,28 @@ module.exports = (pattern, {
   };
 
   const removeFile = (abspath) => {
-    const watcher = files[abspath];
-
-    if (watcher) {
-      delete files[abspath];
+    if (files.has(abspath)) {
+      files.delete(abspath);
       throttle(abspath, 'unlink', { path: path.resolve(abspath) });
     }
   };
 
   const removeDir = (abspath) => {
-    const watcher = dirs[abspath];
+    const watcher = dirs.get(abspath);
 
     if (watcher) {
       watcher.close();
-      delete dirs[abspath];
+      dirs.delete(abspath);
       throttle(abspath, 'unlinkDir', { path: path.resolve(abspath) });
     }
   };
 
   const addFile = (abspath) => {
-    if (files[abspath]) {
+    if (files.has(abspath)) {
       return;
     }
 
-    files[abspath] = 1;
-
+    files.set(abspath, path.posix.dirname(abspath));
     events.emit('add', { path: path.resolve(abspath) });
   };
 
@@ -255,16 +247,37 @@ module.exports = (pattern, {
       return;
     }
 
-    const changepath = `${abspath}/${name}`;
+    const changepath = name ? `${abspath}/${unixify(name)}` : abspath;
 
-    // this is a file change inside the directory
-    if (type !== EV_DISCOVER && files[changepath]) {
+    // this is a change for a known file, let throttle handle it
+    if (type !== EV_DISCOVER && files.has(changepath)) {
       throttle(changepath, 'change', { path: path.resolve(changepath) });
       return;
     }
 
+    const stats = await stat(changepath);
+
+    // this is a known directory that no longer exists, remove it
+    if (!stats && dirs.has(changepath)) {
+      return removeDir(changepath);
+    }
+
+    // this is a new directory being discovered, so add it and move on
+    if (stats && stats.isDirectory() && !dirs.has(changepath)) {
+      return watchDir(changepath);
+    }
+
+    if (!stats) {
+      // this can happen on Linux when a folder itself is changed
+      // that is okay, because in those cases, we have a parent watcher
+      // which will handle the change, so we can ignore it
+      return;
+    }
+
+    const globpath = stats.isDirectory() ? changepath : path.posix.dirname(changepath);
+
     try {
-      const paths = await globdir(abspath, absolutePatterns);
+      const paths = await globdir(globpath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
         if (/\/$/.test(file)) {
           dirs.push(file.slice(0, -1));
@@ -276,56 +289,96 @@ module.exports = (pattern, {
       }, [[], []]);
 
       // find only files that exist in this directory
-      const existingFiles = Object.keys(files)
-        .filter(file => path.posix.dirname(file) === abspath);
+      const existingFiles = [];
+
+      files.forEach((parent, file) => {
+        if (parent === globpath) {
+          existingFiles.push(file);
+        }
+      });
       // diff returns items in the first array that are not in the second
       diff(existingFiles, foundFiles).forEach(file => removeFile(file));
       diff(foundFiles, existingFiles).forEach(file => addFile(file));
 
       // now do the same thing for directories
-      const existingDirs = Object.keys(dirs)
-        .filter(dir => path.posix.dirname(dir) === abspath);
-
+      const existingDirs = [];
+      dirs.forEach((value, dir) => {
+        if (value.parent === globpath) {
+          existingDirs.push(dir);
+        }
+      });
       diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
 
       const queue = limit(4);
 
       await Promise.all(diff(foundDirs, existingDirs).map((dir) => queue(watchDir, dir)));
     } catch (err) {
+      // TODO I think this should use changepath or globpath
       try {
-        if (await exists(abspath)) {
-          error(err, abspath);
+        if (await exists(globpath)) {
+          error(err, globpath);
         }
       } catch (e) {
-        if (dirs[abspath]) {
-          error(err, abspath);
+        if (dirs.has(globpath)) {
+          error(err, globpath);
         }
       }
     }
   };
 
-  const watchDir = (abspath) => {
-    if (dirs[abspath]) {
+  const watchDir = (abspath, { isRoot = false } = {}) => {
+    if (dirs.has(abspath)) {
       return;
     }
 
-    dirs[abspath] = fs.watch(abspath, { persistent }, onDirChange(abspath));
-    dirs[abspath].on('error', (/* err */) => {
-      // TODO an EPERM error is fired when the directory is deleted
-    });
+    if (!shouldWatch(abspath, absolutePatterns)) {
+      return;
+    }
+
+    const recursive = ['win32', 'darwin'].includes(process.platform);
+    const onChange = onDirChange(abspath, recursive);
+
+    if (recursive === true && isRoot === false) {
+      dirs.set(abspath, {
+        close: () => {},
+        parent: path.posix.dirname(abspath),
+        placeholder: true
+      });
+    } else {
+      const watcher = fs.watch(abspath, { persistent, recursive }, onChange);
+      watcher.parent = path.posix.dirname(abspath);
+      watcher.on('error', (/* err */) => {
+        // TODO an EPERM error is fired when the directory is deleted
+      });
+
+      dirs.set(abspath, watcher);
+    }
 
     // check to see if we already have files in there that were
     // added during the initial glob
-    return onDirChange(abspath)(EV_DISCOVER).then(() => {
+    return onChange(EV_DISCOVER).then(() => {
       events.emit('addDir', { path: path.resolve(abspath) });
     });
   };
 
-  dirGlob(resolvedPatterns, { cwd }).then((p) => {
-    absolutePatterns = p;
+  Promise.resolve().then(async () => {
+    const patterns = Array.isArray(pattern) ? pattern : [pattern];
+    absolutePatterns = [];
+
+    for (let str of patterns) {
+      const negative = str[0] === '!';
+
+      if (negative) {
+        str = str.slice(1);
+      }
+
+      let result = unixifyAbs(path.resolve(cwd, str));
+
+      absolutePatterns.push(negative ? `!${result}` : result);
+    }
   }).then(() => {
-    const dir = addDriveLetter(cwd, unixify(cwd));
-    return watchDir(dir);
+    const dir = unixifyAbs(cwd);
+    return watchDir(dir, { isRoot: true });
   }).then(() => {
     // this is the most annoying part, but it seems that watching does not
     // occur immediately, yet there is no event for whenan fs watcher is
@@ -342,13 +395,8 @@ module.exports = (pattern, {
   events.close = () => {
     state = STATE.CLOSED;
 
-    for (let file in files) {
-      removeFile(file);
-    }
-
-    for (let dir in dirs) {
-      removeDir(dir);
-    }
+    files.forEach((val, file) => removeFile(file));
+    dirs.forEach((val, dir) => removeDir(dir));
   };
 
   return events;
