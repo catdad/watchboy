@@ -93,4 +93,4 @@ Stop watching all files. After this method is called, the watcher can no longer 
 
 ## Performance
 
-Check out [this benchmark](https://github.com/catdad-experiments/filewatch-benchmarks) comparing `watchboy` to popular alternatives. Spoiler: it fairs really well.
+Check out [this benchmark](https://github.com/catdad-experiments/filewatch-benchmarks) comparing `watchboy` to popular alternatives. Spoiler: it fares really well.
