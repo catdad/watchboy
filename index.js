@@ -158,13 +158,15 @@ module.exports = (pattern, {
       clearTimeout(pending[abspath].timer);
     }
 
+    const ref = pending[abspath];
+
     pending[abspath].timer = setTimeout(() => {
       if (state === STATE.CLOSED) {
         delete pending[abspath];
         return;
       }
 
-      const { evname, evarg } = pending[abspath];
+      const { evname, evarg } = ref;
 
       if (evname !== 'change') {
         delete pending[abspath];
@@ -185,7 +187,7 @@ module.exports = (pattern, {
         }
 
         // it is possible file could have been deleted during the check
-        const { evname, evarg } = pending[abspath];
+        const { evname, evarg } = ref;
         delete pending[abspath];
 
         // file no longer exists, should fire unlink
