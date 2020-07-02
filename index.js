@@ -277,7 +277,7 @@ module.exports = (pattern, {
     try {
       const paths = await globdir(globpath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
-        if (/\/$/.test(file)) {
+        if (file.slice(-1) === '/') {
           dirs.push(file.slice(0, -1));
         } else {
           files.push(file);
