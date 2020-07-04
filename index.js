@@ -277,7 +277,7 @@ module.exports = (pattern, {
     try {
       const paths = await globdir(globpath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
-        if (/\/$/.test(file)) {
+        if (file.slice(-1) === '/') {
           dirs.push(file.slice(0, -1));
         } else {
           files.push(file);
@@ -294,9 +294,10 @@ module.exports = (pattern, {
           existingFiles.push(file);
         }
       });
+
       // diff returns items in the first array that are not in the second
-      diff(existingFiles, foundFiles).forEach(file => removeFile(file));
-      diff(foundFiles, existingFiles).forEach(file => addFile(file));
+      for (let file of diff(existingFiles, foundFiles)) removeFile(file);
+      for (let file of diff(foundFiles, existingFiles)) addFile(file);
 
       // now do the same thing for directories
       const existingDirs = [];
@@ -305,11 +306,10 @@ module.exports = (pattern, {
           existingDirs.push(dir);
         }
       });
-      diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
 
-      for (let dir of diff(foundDirs, existingDirs)) {
-        await watchDir(dir);
-      }
+      for (let dir of diff(existingDirs, foundDirs)) removeDir(dir);
+      // TODO should we do these in parallel?
+      for (let dir of diff(foundDirs, existingDirs)) await watchDir(dir);
     } catch (err) {
       // TODO I think this should use changepath or globpath
       try {
