@@ -6,6 +6,8 @@ const unixify = require('unixify');
 const micromatch = require('micromatch');
 const pify = require('pify');
 
+const isDarwin = process.platform === 'darwin';
+
 const EV_DISCOVER = '_wb_discover';
 const STATE = {
   STARTING: 'starting',
@@ -88,7 +90,7 @@ const globdir = async (dir, patterns) => {
     return matches;
   };
 
-  if (fs.Dirent && process.platform !== 'darwin') {
+  if (fs.Dirent && !isDarwin) {
     return await run();
   }
 
@@ -197,7 +199,8 @@ module.exports = (pattern, {
           return void events.emit('unlink', evarg);
         }
 
-        if (lastMtimeMs <= stat.mtimeMs) {
+        // MacOS does not have accurate mtime values, so always fire a change
+        if (lastMtimeMs <= stat.mtimeMs || isDarwin) {
           events.emit('change', evarg);
         }
 
