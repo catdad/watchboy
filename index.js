@@ -6,6 +6,8 @@ const unixify = require('unixify');
 const micromatch = require('micromatch');
 const pify = require('pify');
 
+const isDarwin = process.platform === 'darwin';
+
 const EV_DISCOVER = '_wb_discover';
 const STATE = {
   STARTING: 'starting',
@@ -88,7 +90,7 @@ const globdir = async (dir, patterns) => {
     return matches;
   };
 
-  if (fs.Dirent && process.platform !== 'darwin') {
+  if (fs.Dirent && !isDarwin) {
     return await run();
   }
 
@@ -120,6 +122,8 @@ module.exports = (pattern, {
   cwd = process.cwd(),
   persistent = true
 } = {}) => {
+  let lastMtimeMs = Date.now();
+
   // support passing relative paths and '.'
   cwd = path.resolve(cwd);
 
@@ -195,7 +199,12 @@ module.exports = (pattern, {
           return void events.emit('unlink', evarg);
         }
 
-        return void events.emit('change', evarg);
+        // MacOS does not have accurate mtime values, so always fire a change
+        if (lastMtimeMs <= stat.mtimeMs || isDarwin) {
+          events.emit('change', evarg);
+        }
+
+        lastMtimeMs = Math.max(stat.mtimeMs, lastMtimeMs);
       }).catch(err => {
         error(err, abspath);
       });
@@ -378,6 +387,10 @@ module.exports = (pattern, {
     const dir = unixifyAbs(cwd);
     return watchDir(dir, { isRoot: true });
   }).then(() => {
+    // turns out time is linear (as least as we understand it now)
+    // so we can keep track of a single mtimeMs to compare updates to
+    lastMtimeMs = Date.now();
+
     // this is the most annoying part, but it seems that watching does not
     // occur immediately, yet there is no event for whenan fs watcher is
     // actually ready... some of the internal bits use process.nextTick,
