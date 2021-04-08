@@ -179,7 +179,13 @@ module.exports = (pattern, {
 
       // prevent events queued after the original timeout fired
       // from scheduling another event
-      pending[abspath].timer = -1;
+      if (ref.timer) {
+        clearTimeout(ref.timer);
+        ref.timer = -1;
+      }
+      if (pending[abspath]) {
+        pending[abspath].timer = -1;
+      }
 
       // always check that this file exists on a change event due to a bug
       // in node 12 that fires a delete as a change instead of rename
