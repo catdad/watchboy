@@ -6,6 +6,8 @@ const unixify = require('unixify');
 const micromatch = require('micromatch');
 const pify = require('pify');
 
+const isDarwin = process.platform === 'darwin';
+
 const EV_DISCOVER = '_wb_discover';
 const STATE = {
   STARTING: 'starting',
@@ -50,13 +52,20 @@ const readdir = async (dir) => {
 };
 
 const isMatch = (input, patterns) => {
-  let failed = false;
+  let result = false;
 
   for (let p of patterns) {
-    failed = failed || !micromatch.isMatch(input, p);
+    const isPositive = p[0] !== '!';
+    const isMatch = micromatch.isMatch(input, p);
+
+    if (isMatch && isPositive) {
+      result = true;
+    } else if (!isMatch && !isPositive) {
+      result = false;
+    }
   }
 
-  return !failed;
+  return result;
 };
 
 const isParent = (input, patterns) => {
@@ -81,7 +90,7 @@ const globdir = async (dir, patterns) => {
     return matches;
   };
 
-  if (fs.Dirent && process.platform !== 'darwin') {
+  if (fs.Dirent && !isDarwin) {
     return await run();
   }
 
@@ -113,6 +122,8 @@ module.exports = (pattern, {
   cwd = process.cwd(),
   persistent = true
 } = {}) => {
+  let lastMtimeMs = Date.now();
+
   // support passing relative paths and '.'
   cwd = path.resolve(cwd);
 
@@ -151,13 +162,15 @@ module.exports = (pattern, {
       clearTimeout(pending[abspath].timer);
     }
 
+    const ref = pending[abspath];
+
     pending[abspath].timer = setTimeout(() => {
       if (state === STATE.CLOSED) {
         delete pending[abspath];
         return;
       }
 
-      const { evname, evarg } = pending[abspath];
+      const { evname, evarg } = ref;
 
       if (evname !== 'change') {
         delete pending[abspath];
@@ -166,7 +179,13 @@ module.exports = (pattern, {
 
       // prevent events queued after the original timeout fired
       // from scheduling another event
-      pending[abspath].timer = -1;
+      if (ref.timer) {
+        clearTimeout(ref.timer);
+        ref.timer = -1;
+      }
+      if (pending[abspath]) {
+        pending[abspath].timer = -1;
+      }
 
       // always check that this file exists on a change event due to a bug
       // in node 12 that fires a delete as a change instead of rename
@@ -178,7 +197,7 @@ module.exports = (pattern, {
         }
 
         // it is possible file could have been deleted during the check
-        const { evname, evarg } = pending[abspath];
+        const { evname, evarg } = ref;
         delete pending[abspath];
 
         // file no longer exists, should fire unlink
@@ -186,7 +205,12 @@ module.exports = (pattern, {
           return void events.emit('unlink', evarg);
         }
 
-        return void events.emit('change', evarg);
+        // MacOS does not have accurate mtime values, so always fire a change
+        if (lastMtimeMs <= stat.mtimeMs || isDarwin) {
+          events.emit('change', evarg);
+        }
+
+        lastMtimeMs = Math.max(stat.mtimeMs, lastMtimeMs);
       }).catch(err => {
         error(err, abspath);
       });
@@ -248,14 +272,12 @@ module.exports = (pattern, {
 
     // this is a known directory that no longer exists, remove it
     if (!stats && dirs.has(changepath)) {
-      removeDir(changepath);
-      return;
+      return removeDir(changepath);
     }
 
     // this is a new directory being discovered, so add it and move on
     if (stats && stats.isDirectory() && !dirs.has(changepath)) {
-      watchDir(changepath);
-      return;
+      return watchDir(changepath);
     }
 
     if (!stats) {
@@ -270,7 +292,7 @@ module.exports = (pattern, {
     try {
       const paths = await globdir(globpath, absolutePatterns);
       const [foundFiles, foundDirs] = paths.reduce(([files, dirs], file) => {
-        if (/\/$/.test(file)) {
+        if (file.slice(-1) === '/') {
           dirs.push(file.slice(0, -1));
         } else {
           files.push(file);
@@ -287,9 +309,10 @@ module.exports = (pattern, {
           existingFiles.push(file);
         }
       });
+
       // diff returns items in the first array that are not in the second
-      diff(existingFiles, foundFiles).forEach(file => removeFile(file));
-      diff(foundFiles, existingFiles).forEach(file => addFile(file));
+      for (let file of diff(existingFiles, foundFiles)) removeFile(file);
+      for (let file of diff(foundFiles, existingFiles)) addFile(file);
 
       // now do the same thing for directories
       const existingDirs = [];
@@ -298,12 +321,12 @@ module.exports = (pattern, {
           existingDirs.push(dir);
         }
       });
-      diff(existingDirs, foundDirs).forEach(dir => removeDir(dir));
 
-      for (let dir of diff(foundDirs, existingDirs)) {
-        await watchDir(dir);
-      }
+      for (let dir of diff(existingDirs, foundDirs)) removeDir(dir);
+      // TODO should we do these in parallel?
+      for (let dir of diff(foundDirs, existingDirs)) await watchDir(dir);
     } catch (err) {
+      // TODO I think this should use changepath or globpath
       try {
         if (await exists(globpath)) {
           error(err, globpath);
@@ -370,6 +393,10 @@ module.exports = (pattern, {
     const dir = unixifyAbs(cwd);
     return watchDir(dir, { isRoot: true });
   }).then(() => {
+    // turns out time is linear (as least as we understand it now)
+    // so we can keep track of a single mtimeMs to compare updates to
+    lastMtimeMs = Date.now();
+
     // this is the most annoying part, but it seems that watching does not
     // occur immediately, yet there is no event for whenan fs watcher is
     // actually ready... some of the internal bits use process.nextTick,

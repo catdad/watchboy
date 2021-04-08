@@ -434,7 +434,7 @@ describe('watchboy', () => {
       expect(unlinkedDir).to.equal(positiveDir);
     });
 
-    it('does not triger add for a new file matcing a negative pattern', async () => {
+    it('does not trigger add for a new file matcing a negative pattern', async () => {
       const negativeFile = file('oranges/seven.log');
       const positiveFile = file('oranges/eight.txt');
 
@@ -471,6 +471,40 @@ describe('watchboy', () => {
       ]);
 
       expect(addedFile).to.equal(positiveFile);
+    });
+
+    it('positive patters after an ignore add files back in', async () => {
+      await Promise.all([
+        file('bananas/sliced/seven.txt'),
+        file('bananas/sliced/eight.txt'),
+        file('bananas/mashed/nine.txt'),
+      ].map(f => fs.outputFile(f, '')));
+
+      const dirs = [], files = [];
+
+      await new Promise(r => {
+        watcher = watchboy(['**/*', '!bananas/**/*', 'bananas/sliced/**/*'], { cwd: temp, persistent: false })
+          .on('add', ({ path }) => files.push(path))
+          .on('addDir', ({ path }) => dirs.push(path))
+          .on('ready', () => r());
+      });
+
+      expect(dirs.sort()).to.deep.equal([
+        path.resolve(temp),
+        path.resolve(temp, 'bananas'),
+        path.resolve(temp, 'bananas/sliced'),
+        path.resolve(temp, 'oranges'),
+        path.resolve(temp, 'pineapples'),
+      ].sort());
+
+      expect(files.sort()).to.deep.equal([
+        file('one.txt'),
+        file('bananas/sliced/seven.txt'),
+        file('bananas/sliced/eight.txt'),
+        file('oranges/four.txt'),
+        file('oranges/five.txt'),
+        file('pineapples/six.txt'),
+      ].sort());
     });
   });
 
